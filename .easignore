@@ -1,0 +1,13 @@
+node_modules
+node_modules/
+**/node_modules/**
+vendor
+vendor/
+**/vendor/**
+.git
+.expo
+android
+ios
+example
+storage
+public
