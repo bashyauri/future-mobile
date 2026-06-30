@@ -81,7 +81,7 @@ export default function PracticeSetupScreen() {
       {/* Header */}
       <View className="pt-16 pb-6 px-6 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
         <Heading size="xl" className="mb-2">Practice Mode</Heading>
-        <BodyText className="text-neutral-500 dark:text-neutral-400">
+        <BodyText className="text-neutral-900 dark:text-neutral-400">
           Focus on specific subjects and past questions to sharpen your skills at your own pace.
         </BodyText>
       </View>
@@ -140,7 +140,7 @@ export default function PracticeSetupScreen() {
               </View>
               <View>
                 <BodyText className="font-semibold mb-1">Timed Mode</BodyText>
-                <Caption className="text-neutral-500">Practice under exam pressure</Caption>
+                <Caption className="text-neutral-900">Practice under exam pressure</Caption>
               </View>
             </View>
             <Switch

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'expo-router';
 import { View, ScrollView, ActivityIndicator, Alert, SafeAreaView, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
@@ -15,33 +16,49 @@ type Subject = {
 };
 
 const STREAMS = [
-  { id: 'science', name: 'Science', description: 'Physics, Chemistry, Biology, Math', subjects: ['Mathematics', 'English Language', 'Physics', 'Chemistry'] },
-  { id: 'arts', name: 'Arts', description: 'Literature, Government, History', subjects: ['Mathematics', 'English Language', 'Literature in English', 'Government'] },
-  { id: 'commercial', name: 'Commercial', description: 'Accounting, Commerce, Economics', subjects: ['Mathematics', 'English Language', 'Economics', 'Commerce'] },
+  { id: 'science', name: 'Science', description: 'Physics, Chemistry, Biology, Math', subjects: ['Mathematics', 'English Language', 'Physics', 'Chemistry'], icon: 'science' },
+  { id: 'arts', name: 'Arts', description: 'Literature, Government, History', subjects: ['Mathematics', 'English Language', 'Literature in English', 'Government'], icon: 'palette' },
+  { id: 'commercial', name: 'Commercial', description: 'Accounting, Commerce, Economics', subjects: ['Mathematics', 'English Language', 'Economics', 'Commerce'], icon: 'account-balance' },
 ];
 
 export default function OnboardingScreen() {
   const { user, updateUser } = useAuth();
+  const router = useRouter();
+
+useEffect(() => {
+  if (user?.has_completed_onboarding) {
+    router.replace('/(tabs)');
+  }
+}, [user, router]);
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   
   const [loading, setLoading] = useState(false);
   const [fetchingSubjects, setFetchingSubjects] = useState(true);
+  const [subjectError, setSubjectError] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   
   const [mode, setMode] = useState<'stream' | 'manual'>('stream');
   const [selectedStream, setSelectedStream] = useState<string | null>(null);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
-
+  const step = useMemo(() => {
+    if (mode === 'stream') {
+      return selectedStream ? 2 : 1;
+    }
+    if (mode === 'manual') {
+      return selectedSubjects.length > 0 ? 3 : 2;
+    }
+    return 1;
+  }, [mode, selectedStream, selectedSubjects]);
   useEffect(() => {
     const loadSubjects = async () => {
       try {
         const response = await api.get('/config/subjects');
-        // Handle varying response structures (e.g., { data: [...] } vs [...])
         const subjectsData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
         setSubjects(subjectsData);
       } catch (error) {
         console.log('Error fetching subjects:', error);
+        setSubjectError('Could not load subjects. Please check your connection.');
       } finally {
         setFetchingSubjects(false);
       }
@@ -74,12 +91,19 @@ export default function OnboardingScreen() {
 
     setLoading(true);
     try {
-      // Simulate saving to API
-      // await api.post('/user/onboarding', { stream: selectedStream, subjects: selectedSubjects });
+      // Save onboarding data via API
+      await api.post('/onboarding', {
+        stream: selectedStream,
+        subjects: selectedSubjects,
+      });
 
+      // Update auth context with new flag
       if (user) {
         updateUser({ ...user, has_completed_onboarding: true });
       }
+
+      // Navigate to main dashboard (tabs)
+      router.replace('/(tabs)');
     } catch (error) {
       console.log('Onboarding error:', error);
       Alert.alert('Error', 'Failed to save your preferences. Please try again.');
@@ -106,8 +130,17 @@ export default function OnboardingScreen() {
         <View className="w-14 h-14 rounded-2xl bg-primary-100 dark:bg-primary-900/30 items-center justify-center mb-4">
           <MaterialIcons name="auto-awesome" size={28} color="#4f46e5" />
         </View>
-        <Heading size="xl">Personalize Your Setup</Heading>
+        <Heading size="xl" className="text-neutral-900 dark:text-neutral-50">Personalize Your Setup</Heading>
         <BodyText variant="subtle" className="mt-2">Choose how you want to prepare. You can pick a curated stream or manually select your subjects.</BodyText>
+        
+        {/* Progress Bar */}
+        <View className="flex flex-row justify-between mb-3 mt-6">
+          <BodyText className="text-sm text-neutral-600 dark:text-neutral-400">{`Step ${step} of 3`}</BodyText>
+          <BodyText className="text-sm text-neutral-600 dark:text-neutral-400">{`${Math.round((step/3)*100)}% Complete`}</BodyText>
+        </View>
+        <View className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2 mb-4">
+          <View style={{width: `${(step/3)*100}%`}} className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full" />
+        </View>
         
         {/* Toggle Mode */}
         <View className="flex-row mt-6 bg-neutral-100 dark:bg-neutral-900 p-1 rounded-xl">
@@ -115,13 +148,13 @@ export default function OnboardingScreen() {
             className={`flex-1 py-2 items-center justify-center rounded-lg ${mode === 'stream' ? 'bg-white dark:bg-neutral-800 shadow-sm border border-neutral-200 dark:border-neutral-700' : ''}`}
             onPress={() => setMode('stream')}
           >
-            <BodyText className={`font-semibold ${mode === 'stream' ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-500'}`}>Pick a Stream</BodyText>
+            <BodyText className={`font-semibold ${mode === 'stream' ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-900 dark:text-neutral-400'}`}>Pick a Stream</BodyText>
           </TouchableOpacity>
           <TouchableOpacity 
             className={`flex-1 py-2 items-center justify-center rounded-lg ${mode === 'manual' ? 'bg-white dark:bg-neutral-800 shadow-sm border border-neutral-200 dark:border-neutral-700' : ''}`}
             onPress={() => setMode('manual')}
           >
-            <BodyText className={`font-semibold ${mode === 'manual' ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-500'}`}>Select Manual</BodyText>
+            <BodyText className={`font-semibold ${mode === 'manual' ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-900 dark:text-neutral-400'}`}>Select Manual</BodyText>
           </TouchableOpacity>
         </View>
       </View>
@@ -137,7 +170,8 @@ export default function OnboardingScreen() {
                 onPress={() => setSelectedStream(stream.id)}
                 className={selectedStream === stream.id ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : ''}
               >
-                <View className="flex-row items-center mb-3">
+                <View className="flex-row items-start space-x-4">
+                  <MaterialIcons name={stream.icon as any} size={28} color={isDark ? '#a1a1aa' : '#71717a'} />
                   <View className="flex-1">
                     <Subheading size="lg" className={selectedStream === stream.id ? 'text-primary-700 dark:text-primary-400' : ''}>{stream.name}</Subheading>
                     <BodyText variant="subtle" size="sm" className="mt-1">{stream.description}</BodyText>
@@ -146,7 +180,7 @@ export default function OnboardingScreen() {
                     {selectedStream === stream.id && <MaterialIcons name="check" size={14} color="white" />}
                   </View>
                 </View>
-                <View className="flex-row flex-wrap gap-2">
+                <View className="flex-row flex-wrap gap-2 mt-4">
                   {stream.subjects.map(sub => (
                     <View key={sub} className="bg-white dark:bg-neutral-800 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700">
                       <BodyText size="xs" className="text-neutral-600 dark:text-neutral-300">{sub}</BodyText>
@@ -166,8 +200,10 @@ export default function OnboardingScreen() {
             {fetchingSubjects ? (
               <View className="py-10 items-center justify-center">
                 <ActivityIndicator size="large" color="#4f46e5" />
-                <BodyText className="mt-4 text-neutral-500">Loading subjects...</BodyText>
+                <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">Loading subjects...</BodyText>
               </View>
+            ) : subjectError ? (
+              <BodyText className="text-center text-red-600 dark:text-red-400 mt-4">{subjectError}</BodyText>
             ) : subjects.length > 0 ? (
               <View className="flex-row flex-wrap justify-between gap-y-3">
                 {subjects.map((subject) => {
@@ -193,12 +229,11 @@ export default function OnboardingScreen() {
                   );
                 })}
               </View>
-            ) : (
-              <View className="py-10 items-center justify-center bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800">
-                <MaterialIcons name="error-outline" size={40} color="#a1a1aa" />
-                <BodyText className="mt-4 text-neutral-500 text-center px-6">Could not load subjects. Please check your connection.</BodyText>
-              </View>
-            )}
+                ) : (
+                  <View className="py-10 items-center justify-center">
+                    <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400 text-center">No subjects available.</BodyText>
+                  </View>
+                )}
           </View>
         )}
       </ScrollView>

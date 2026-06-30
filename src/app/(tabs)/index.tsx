@@ -46,7 +46,7 @@ export default function DashboardScreen() {
               <MaterialIcons name="emoji-events" size={24} color="#10b981" />
             </View>
             <Heading size="lg" className="text-neutral-900 dark:text-neutral-50 mb-1">0</Heading>
-            <Caption className="text-neutral-500 text-center">Mock Score</Caption>
+            <Caption className="text-neutral-900 text-center">Mock Score</Caption>
           </Card>
           
           <Card className="flex-1 ml-2 p-4 items-center justify-center border-0 shadow-sm">
@@ -54,7 +54,7 @@ export default function DashboardScreen() {
               <MaterialIcons name="local-fire-department" size={24} color="#4f46e5" />
             </View>
             <Heading size="lg" className="text-neutral-900 dark:text-neutral-50 mb-1">0</Heading>
-            <Caption className="text-neutral-500 text-center">Day Streak</Caption>
+            <Caption className="text-neutral-900 text-center">Day Streak</Caption>
           </Card>
         </View>
 
@@ -69,7 +69,7 @@ export default function DashboardScreen() {
               <MaterialIcons name="menu-book" size={28} color="#4f46e5" />
             </View>
             <BodyText className="font-semibold text-center mb-1">Practice</BodyText>
-            <Caption className="text-neutral-500 text-center">Topic by topic</Caption>
+            <Caption className="text-neutral-900 text-center">Topic by topic</Caption>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -80,7 +80,7 @@ export default function DashboardScreen() {
               <MaterialIcons name="timer" size={28} color="#e11d48" />
             </View>
             <BodyText className="font-semibold text-center mb-1">Take Mock</BodyText>
-            <Caption className="text-neutral-500 text-center">Full exam</Caption>
+            <Caption className="text-neutral-900 text-center">Full exam</Caption>
           </TouchableOpacity>
         </View>
 
@@ -97,7 +97,7 @@ export default function DashboardScreen() {
             <MaterialIcons name="history" size={32} color={isDark ? '#a1a1aa' : '#a1a1aa'} />
           </View>
           <BodyText className="font-medium text-center mb-2">No activity yet</BodyText>
-          <Caption className="text-neutral-500 text-center px-4">
+          <Caption className="text-neutral-900 text-center px-4">
             Your recent practice sessions and mock exam results will appear here.
           </Caption>
         </Card>

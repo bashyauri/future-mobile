@@ -23,16 +23,31 @@ export function Card({
   const isDark = theme === 'dark';
 
   const getVariantClasses = () => {
-    switch (variant) {
-      case 'bordered':
-        return `border-2 ${isDark ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`;
-      case 'elevated':
-        return `shadow-xl ${isDark ? 'bg-neutral-900 shadow-black/30' : 'bg-white shadow-neutral-200/50'}`;
-      case 'outlined':
-        return `border ${isDark ? 'border-neutral-700 bg-neutral-900/50' : 'border-neutral-300 bg-white'}`;
-      case 'default':
-      default:
-        return `${isDark ? 'bg-neutral-900' : 'bg-white'}`;
+    // Ensure both light and dark backgrounds are explicitly defined for every variant
+    if (isDark) {
+      switch (variant) {
+        case 'bordered':
+          return 'border-2 border-neutral-800 bg-neutral-900';
+        case 'elevated':
+          return 'shadow-xl bg-neutral-900 shadow-black/30';
+        case 'outlined':
+          return 'border border-neutral-700 bg-neutral-900/50';
+        case 'default':
+        default:
+          return 'bg-neutral-900';
+      }
+    } else {
+      switch (variant) {
+        case 'bordered':
+          return 'border-2 border-neutral-200 bg-white';
+        case 'elevated':
+          return 'shadow-xl bg-white shadow-neutral-200/50';
+        case 'outlined':
+          return 'border border-neutral-300 bg-white';
+        case 'default':
+        default:
+          return 'bg-white';
+      }
     }
   };
 

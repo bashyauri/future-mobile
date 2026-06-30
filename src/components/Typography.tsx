@@ -112,7 +112,7 @@ export function Caption({ children, className = '', style }: CaptionProps) {
   const isDark = theme === 'dark';
 
   return (
-    <Text className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-500'} ${className}`} style={style}>
+    <Text className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-900'} ${className}`} style={style}>
       {children}
     </Text>
   );

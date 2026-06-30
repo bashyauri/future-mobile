@@ -88,7 +88,7 @@ export default function SettingsScreen() {
 
   const Section = ({ title, children, className = "" }: any) => (
     <View className={`px-4 py-2 mt-4 ${className}`}>
-      <Subheading size="md" className="mb-2 text-neutral-500 dark:text-neutral-400 uppercase tracking-wider text-xs ml-2">{title}</Subheading>
+      <Subheading size="md" className="mb-2 text-neutral-900 dark:text-neutral-400 uppercase tracking-wider text-xs ml-2">{title}</Subheading>
       <Card variant="bordered" padding="none" className="overflow-hidden bg-white dark:bg-neutral-900">
         {children}
       </Card>
