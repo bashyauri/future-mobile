@@ -2,12 +2,12 @@ import { storage } from "@/lib/storage";
 import axios from "axios";
 
 const API_BASE_URL = __DEV__
-  ? "https://future-academy.test/api/v1"
+  ? "http://future-academy.test/api/v1"
   : "https://futureacademy-rm.com/api/v1";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 36000,
   headers: {
     Accept: "application/json",
     "Content-Type": "application/json",
@@ -17,7 +17,7 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
   try {
     const token = await storage.getItem("auth_token");
-
+    console.log('>>> Request interceptor - token:', token);
     if (token) {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
@@ -25,7 +25,6 @@ api.interceptors.request.use(async (config) => {
   } catch (e) {
     console.warn("Token error", e);
   }
-
   return config;
 });
 

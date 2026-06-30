@@ -148,9 +148,10 @@ export default function MockSetupScreen() {
       </View>
 
       <ScrollView className="flex-1 px-4 pt-6" showsVerticalScrollIndicator={false}>
+        <View className="flex-1">
         {/* Exam Type Selection */}
-        <Subheading size="md" className="mb-3 px-2">Select Exam Type</Subheading>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8 pl-2">
+                <Subheading size="md" className="mb-3 px-2">Select Exam Type</Subheading>
+        <View className="flex flex-wrap gap-2 mb-8 pl-2">
           {examTypes.map((et) => (
             <Button
               key={et.id}
@@ -161,7 +162,7 @@ export default function MockSetupScreen() {
               {et.name}
             </Button>
           ))}
-        </ScrollView>
+        </View>
 
         {/* Year Selection */}
         <Subheading size="md" className="mb-3 px-2">Select Year</Subheading>
@@ -210,6 +211,7 @@ export default function MockSetupScreen() {
             />
           </View>
         </Card>
+      </View>
       </ScrollView>
 
       {/* Sticky Bottom Action */}

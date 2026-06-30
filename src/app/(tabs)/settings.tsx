@@ -5,31 +5,47 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Button, Card } from '@/components';
 import { Heading, Subheading, BodyText } from '@/components/Typography';
+import { useRouter } from 'expo-router';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { user, logout } = useAuth();
   const { theme, setTheme, colorScheme } = useTheme();
   const isDark = theme === 'dark';
-  
+
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
 
   const handleLogout = () => {
+    console.log('Logout button pressed');
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        "Are you sure you want to log out?"
+      );
+
+      if (confirmed) {
+        logout();
+      }
+
+      return;
+    }
+
     Alert.alert(
       "Log Out",
       "Are you sure you want to log out?",
       [
         {
           text: "Cancel",
-          style: "cancel"
+          style: "cancel",
         },
         {
           text: "Log Out",
           onPress: async () => {
             await logout();
           },
-          style: "destructive"
-        }
+          style: "destructive",
+        },
       ]
     );
   };
@@ -38,11 +54,11 @@ export default function SettingsScreen() {
     setTheme(newTheme);
   };
 
-  const SettingRow = ({ 
-    icon, 
-    label, 
-    value, 
-    onPress, 
+  const SettingRow = ({
+    icon,
+    label,
+    value,
+    onPress,
     isSwitch = false,
     switchValue = false,
     onSwitchChange,
@@ -50,7 +66,7 @@ export default function SettingsScreen() {
     danger = false
   }: any) => {
     const isSelected = value !== undefined && (colorScheme === value || (value === 'light' && theme === 'light' && colorScheme !== 'system') || (value === 'dark' && theme === 'dark' && colorScheme !== 'system'));
-    
+
     return (
       <TouchableOpacity
         className={`flex-row items-center justify-between px-4 py-4 ${showBorder ? 'border-b border-neutral-200 dark:border-neutral-800' : ''}`}
@@ -59,18 +75,18 @@ export default function SettingsScreen() {
       >
         <View className="flex-row items-center flex-1">
           <View className={`w-8 h-8 rounded-full items-center justify-center mr-3 ${danger ? 'bg-error-100 dark:bg-error-900/30' : 'bg-primary-50 dark:bg-primary-900/20'}`}>
-            <MaterialIcons 
-              name={icon} 
-              size={18} 
-              color={danger ? '#ef4444' : (isSelected ? '#4f46e5' : (isDark ? '#a1a1aa' : '#71717a'))} 
+            <MaterialIcons
+              name={icon}
+              size={18}
+              color={danger ? '#ef4444' : (isSelected ? '#4f46e5' : (isDark ? '#a1a1aa' : '#71717a'))}
             />
           </View>
           <BodyText className={`${danger ? 'text-error-600 dark:text-error-400' : ''}`}>{label}</BodyText>
         </View>
-        
+
         {isSwitch ? (
-          <Switch 
-            value={switchValue} 
+          <Switch
+            value={switchValue}
             onValueChange={onSwitchChange}
             trackColor={{ false: isDark ? '#3f3f46' : '#e4e4e7', true: '#4f46e5' }}
             thumbColor={Platform.OS === 'ios' ? undefined : (switchValue ? '#ffffff' : '#f4f3f4')}
@@ -126,14 +142,14 @@ export default function SettingsScreen() {
 
       {/* Support & About Section */}
       <Section title="Support & About">
-        <SettingRow icon="help-outline" label="Help Center" onPress={() => {}} />
-        <SettingRow icon="privacy-tip" label="Privacy Policy" onPress={() => {}} />
-        <SettingRow icon="info-outline" label="About Future Academy" onPress={() => {}} showBorder={false} />
+        <SettingRow icon="help-outline" label="Help Center" onPress={() => { }} />
+        <SettingRow icon="privacy-tip" label="Privacy Policy" onPress={() => { }} />
+        <SettingRow icon="info-outline" label="About Future Academy" onPress={() => { }} showBorder={false} />
       </Section>
 
       {/* Danger Zone */}
       <View className="px-4 py-8 mb-8">
-        <TouchableOpacity 
+        <TouchableOpacity
           className="bg-white dark:bg-neutral-900 rounded-xl border border-error-200 dark:border-error-900/50 flex-row items-center justify-center py-4"
           onPress={handleLogout}
         >
