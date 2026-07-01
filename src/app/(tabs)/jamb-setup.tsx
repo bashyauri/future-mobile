@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Alert,
   View,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  Switch,
   ActivityIndicator,
 } from "react-native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -18,11 +20,74 @@ import {
 import api from "@/lib/api";
 import { downloadMissingSubjects } from "@/lib/offlineDownload";
 
+type ExamType = {
+  id: number;
+  name: string;
+  slug?: string;
+};
+
 type Subject = {
   id: number;
   name: string;
   is_compulsory?: boolean;
 };
+
+type Year = {
+  year: number | string;
+  label: string;
+};
+
+function normalizeYears(input: unknown): Year[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((item) => {
+      if (typeof item === "number" || typeof item === "string") {
+        return {
+          year: item,
+          label: String(item),
+        };
+      }
+
+      if (item && typeof item === "object") {
+        const maybeYear = (item as { year?: number | string }).year;
+        const maybeLabel = (item as { label?: string }).label;
+
+        if (maybeYear !== undefined) {
+          return {
+            year: maybeYear,
+            label: maybeLabel ?? String(maybeYear),
+          };
+        }
+      }
+
+      return null;
+    })
+    .filter((item): item is Year => Boolean(item));
+}
+
+function toNumericYear(selectedYear: Year | null): number | undefined {
+  if (!selectedYear || selectedYear.year === "all") {
+    return undefined;
+  }
+
+  const parsedYear = Number(selectedYear.year);
+
+  return Number.isFinite(parsedYear) ? parsedYear : undefined;
+}
+
+function isCompulsoryEnglishSubject(subject: Subject): boolean {
+  const normalizedName = subject.name.trim().toLowerCase();
+
+  return (
+    subject.is_compulsory === true ||
+    normalizedName === "use of english" ||
+    normalizedName === "english language" ||
+    normalizedName === "english"
+  );
+}
 
 const getSubjectIcon = (name: string): string => {
   const n = name.toLowerCase();
@@ -58,29 +123,61 @@ const getSubjectColor = (name: string): string => {
 
 export default function JambSetupScreen() {
   const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [years, setYears] = useState<Year[]>([]);
+  const [selectedYear, setSelectedYear] = useState<Year | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [questionsPerSubjectInput, setQuestionsPerSubjectInput] = useState("");
+  const [timeLimitInput, setTimeLimitInput] = useState("");
+  const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isPreparing, setIsPreparing] = useState(false);
   const [prepareStatus, setPrepareStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isApplyingYearSelection, setIsApplyingYearSelection] = useState(false);
+  const yearSelectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   useEffect(() => {
-    const fetchSubjects = async () => {
+    const fetchJambConfiguration = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const res = await api.get("/config/subjects");
-        const fetched: Subject[] = res.data?.data ?? res.data ?? [];
-        setSubjects(fetched);
+        const examTypesResponse = await api.get("/config/exam-types");
+        const examTypes: ExamType[] = examTypesResponse.data?.data ?? [];
+        const jambExamType =
+          examTypes.find((examType) => examType.slug === "jamb") ?? null;
 
-        // Auto-select compulsory subjects (Use of English)
-        const compulsory = fetched
-          .filter(
-            (s) => s.is_compulsory || s.name.toLowerCase().includes("english"),
-          )
-          .map((s) => s.id);
+        const [subjectsResponse, yearsResponse] = await Promise.all([
+          api.get("/config/subjects", {
+            params: jambExamType
+              ? { exam_type_id: jambExamType.id }
+              : undefined,
+          }),
+          api.get("/config/years", {
+            params: jambExamType
+              ? { exam_type_id: jambExamType.id }
+              : undefined,
+          }),
+        ]);
+
+        const fetchedSubjects: Subject[] =
+          subjectsResponse.data?.data ?? subjectsResponse.data ?? [];
+        const fetchedYears = normalizeYears(
+          yearsResponse.data?.data ?? yearsResponse.data ?? [],
+        );
+
+        setSubjects(fetchedSubjects);
+        setYears([{ year: "all", label: "All Years" }, ...fetchedYears]);
+        setSelectedYear({ year: "all", label: "All Years" });
+
+        const compulsory = fetchedSubjects
+          .filter((subject) => isCompulsoryEnglishSubject(subject))
+          .map((subject) => subject.id);
+
         setSelectedIds(compulsory);
       } catch (e) {
         setError("Could not load subjects. Please check your connection.");
@@ -88,11 +185,33 @@ export default function JambSetupScreen() {
         setIsLoading(false);
       }
     };
-    fetchSubjects();
+
+    fetchJambConfiguration();
   }, []);
 
   const isRequired = (subject: Subject): boolean =>
-    !!(subject.is_compulsory || subject.name.toLowerCase().includes("english"));
+    isCompulsoryEnglishSubject(subject);
+
+  const handleYearSelection = (yearOption: Year) => {
+    setSelectedYear(yearOption);
+    setIsApplyingYearSelection(true);
+
+    if (yearSelectionTimerRef.current) {
+      clearTimeout(yearSelectionTimerRef.current);
+    }
+
+    yearSelectionTimerRef.current = setTimeout(() => {
+      setIsApplyingYearSelection(false);
+    }, 500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (yearSelectionTimerRef.current) {
+        clearTimeout(yearSelectionTimerRef.current);
+      }
+    };
+  }, []);
 
   const toggleSubject = (subject: Subject) => {
     if (isRequired(subject)) return;
@@ -118,6 +237,18 @@ export default function JambSetupScreen() {
     try {
       setIsPreparing(true);
       setPrepareStatus("Checking selected subjects...");
+      const selectedNumericYear = toNumericYear(selectedYear);
+      const parsedQuestionsPerSubject = Number(questionsPerSubjectInput);
+      const questionsPerSubject =
+        questionsPerSubjectInput.trim().length > 0 &&
+        Number.isFinite(parsedQuestionsPerSubject)
+          ? parsedQuestionsPerSubject
+          : undefined;
+      const parsedTimeLimit = Number(timeLimitInput);
+      const timeLimit =
+        timeLimitInput.trim().length > 0 && Number.isFinite(parsedTimeLimit)
+          ? parsedTimeLimit
+          : undefined;
 
       const { downloadedNow } = await downloadMissingSubjects(
         selectedSubjects.map((subject) => ({
@@ -125,6 +256,7 @@ export default function JambSetupScreen() {
           name: subject.name,
         })),
         {
+          year: selectedNumericYear,
           onProgress: (progress) => {
             if (progress.phase === "checking") {
               setPrepareStatus(`Checking ${progress.subjectName}...`);
@@ -147,11 +279,23 @@ export default function JambSetupScreen() {
         },
       );
 
+      setPrepareStatus("Validating JAMB session settings...");
+
+      await api.post("/jamb/sessions", {
+        subject_ids: selectedSubjects.map((subject) => subject.id),
+        year: selectedNumericYear ?? null,
+        ...(questionsPerSubject
+          ? { questions_per_subject: questionsPerSubject }
+          : {}),
+        ...(timeLimit ? { time_limit: timeLimit } : {}),
+        shuffle: shuffleQuestions,
+      });
+
       Alert.alert(
         "JAMB ready",
         downloadedNow.length > 0
-          ? `${downloadedNow.length} subject(s) were downloaded for this JAMB session.`
-          : "All selected subjects are already available offline.",
+          ? `${downloadedNow.length} subject(s) were downloaded for this JAMB session. Settings saved: ${questionsPerSubjectInput || "default"} questions/subject, ${timeLimitInput || "no"} time limit, ${shuffleQuestions ? "shuffle on" : "shuffle off"}.`
+          : `All selected subjects are already available offline. Settings saved: ${questionsPerSubjectInput || "default"} questions/subject, ${timeLimitInput || "no"} time limit, ${shuffleQuestions ? "shuffle on" : "shuffle off"}.`,
       );
     } catch (downloadError) {
       const message =
@@ -205,6 +349,33 @@ export default function JambSetupScreen() {
         className="flex-1 px-4 pt-6"
         showsVerticalScrollIndicator={false}
       >
+        <Subheading size="md" className="mb-3 px-2">
+          Select Exam Year (Optional)
+        </Subheading>
+        {isApplyingYearSelection ? (
+          <View className="flex-row items-center px-2 mb-3">
+            <ActivityIndicator size="small" color="#4f46e5" />
+            <Caption className="ml-2 text-neutral-500 dark:text-neutral-400">
+              Applying year...
+            </Caption>
+          </View>
+        ) : null}
+        <View className="flex-row flex-wrap px-2 mb-6">
+          {years.map((yearOption) => (
+            <Button
+              key={String(yearOption.year)}
+              variant={
+                selectedYear?.year === yearOption.year ? "primary" : "outline"
+              }
+              onPress={() => handleYearSelection(yearOption)}
+              size="sm"
+              style={{ marginRight: 12, marginBottom: 12 }}
+            >
+              {yearOption.label}
+            </Button>
+          ))}
+        </View>
+
         <View className="flex-row justify-between items-end mb-4 px-2">
           <Subheading size="md">Available Subjects</Subheading>
           <Caption
@@ -279,6 +450,128 @@ export default function JambSetupScreen() {
             );
           })}
         </View>
+
+        <Subheading size="md" className="mb-3 px-2">
+          Quiz Settings
+        </Subheading>
+        <Card
+          variant="bordered"
+          padding="md"
+          className="mx-2 mb-4 bg-white dark:bg-neutral-900"
+        >
+          <View className="mb-4">
+            <BodyText className="font-semibold mb-2">
+              Questions per Subject
+            </BodyText>
+            <View className="flex-row items-center gap-2 mb-2">
+              <TextInput
+                value={questionsPerSubjectInput}
+                onChangeText={setQuestionsPerSubjectInput}
+                keyboardType="number-pad"
+                placeholder="Default: 40"
+                placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
+                className="flex-1 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-neutral-900 dark:text-neutral-100"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onPress={() => setQuestionsPerSubjectInput("")}
+              >
+                Reset
+              </Button>
+            </View>
+            <Caption className="text-neutral-500 dark:text-neutral-400">
+              Leave blank for all available questions (default: 40 per subject).
+            </Caption>
+          </View>
+
+          <View className="mb-4">
+            <BodyText className="font-semibold mb-2">
+              Time Limit (minutes)
+            </BodyText>
+            <View className="flex-row items-center gap-2 mb-2">
+              <TextInput
+                value={timeLimitInput}
+                onChangeText={setTimeLimitInput}
+                keyboardType="number-pad"
+                placeholder="No time limit"
+                placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
+                className="flex-1 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-neutral-900 dark:text-neutral-100"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onPress={() => setTimeLimitInput("")}
+              >
+                No Limit
+              </Button>
+            </View>
+          </View>
+
+          <View className="flex-row items-center justify-between border-t border-neutral-200 dark:border-neutral-800 pt-4">
+            <View className="flex-row items-center flex-1 pr-4">
+              <View className="w-10 h-10 rounded-full bg-neutral-100 dark:bg-neutral-800 items-center justify-center mr-3">
+                <MaterialIcons
+                  name="shuffle"
+                  size={20}
+                  color={isDark ? "#a1a1aa" : "#52525b"}
+                />
+              </View>
+              <View>
+                <BodyText className="font-semibold mb-1">
+                  Shuffle Questions
+                </BodyText>
+                <Caption className="text-neutral-500 dark:text-neutral-400">
+                  Randomize question order
+                </Caption>
+              </View>
+            </View>
+            <Switch
+              value={shuffleQuestions}
+              onValueChange={setShuffleQuestions}
+              trackColor={{
+                false: isDark ? "#3f3f46" : "#e4e4e7",
+                true: "#4f46e5",
+              }}
+            />
+          </View>
+        </Card>
+
+        <Card
+          variant="bordered"
+          padding="md"
+          className="mx-2 mb-28 bg-white dark:bg-neutral-900"
+        >
+          <Subheading size="sm" className="mb-3">
+            Test Summary
+          </Subheading>
+          <View className="flex-row justify-between items-center mb-2">
+            <Caption className="text-neutral-500 dark:text-neutral-400">
+              Questions/Subject
+            </Caption>
+            <BodyText className="font-semibold text-primary-600 dark:text-primary-400">
+              {questionsPerSubjectInput || "All"}
+            </BodyText>
+          </View>
+          <View className="flex-row justify-between items-center mb-2">
+            <Caption className="text-neutral-500 dark:text-neutral-400">
+              Total Questions
+            </Caption>
+            <BodyText className="font-semibold text-primary-600 dark:text-primary-400">
+              {questionsPerSubjectInput
+                ? `${Number(questionsPerSubjectInput || 0) * 4}`
+                : "All available"}
+            </BodyText>
+          </View>
+          <View className="flex-row justify-between items-center">
+            <Caption className="text-neutral-500 dark:text-neutral-400">
+              Time Limit
+            </Caption>
+            <BodyText className="font-semibold text-primary-600 dark:text-primary-400">
+              {timeLimitInput ? `${timeLimitInput} mins` : "Unlimited"}
+            </BodyText>
+          </View>
+        </Card>
       </ScrollView>
 
       {/* Sticky Bottom Action */}
