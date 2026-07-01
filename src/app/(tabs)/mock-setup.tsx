@@ -1,10 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator, Switch } from 'react-native';
-import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useTheme } from '@/context/ThemeContext';
-import { Card, Button } from '@/components';
-import { Heading, Subheading, BodyText, Caption } from '@/components/Typography';
-import api from '@/lib/api';
+import React, { useState, useEffect } from "react";
+import {
+  Alert,
+  View,
+  ScrollView,
+  ActivityIndicator,
+  Switch,
+} from "react-native";
+import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useTheme } from "@/context/ThemeContext";
+import { Card, Button } from "@/components";
+import {
+  Heading,
+  Subheading,
+  BodyText,
+  Caption,
+} from "@/components/Typography";
+import api from "@/lib/api";
+import { downloadMissingSubjects } from "@/lib/offlineDownload";
 
 // Types based on API responses
 type ExamType = {
@@ -23,6 +35,47 @@ type Year = {
   label: string;
 };
 
+function normalizeYears(input: unknown): Year[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((item) => {
+      if (typeof item === "number" || typeof item === "string") {
+        return {
+          year: item,
+          label: String(item),
+        };
+      }
+
+      if (item && typeof item === "object") {
+        const maybeYear = (item as { year?: number | string }).year;
+        const maybeLabel = (item as { label?: string }).label;
+
+        if (maybeYear !== undefined) {
+          return {
+            year: maybeYear,
+            label: maybeLabel ?? String(maybeYear),
+          };
+        }
+      }
+
+      return null;
+    })
+    .filter((item): item is Year => Boolean(item));
+}
+
+function toNumericYear(selectedYear: Year | null): number | undefined {
+  if (!selectedYear || selectedYear.year === "random") {
+    return undefined;
+  }
+
+  const parsedYear = Number(selectedYear.year);
+
+  return Number.isFinite(parsedYear) ? parsedYear : undefined;
+}
+
 type MockFormatSpec = {
   overall?: { time_limit?: number; sum_subject_time?: boolean };
   per_subject?: Array<{
@@ -35,7 +88,7 @@ type MockFormatSpec = {
 
 export default function MockSetupScreen() {
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
 
   // Loading flags
   const [isLoading, setIsLoading] = useState(true);
@@ -45,13 +98,19 @@ export default function MockSetupScreen() {
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [years, setYears] = useState<Year[]>([]);
-  const [mockFormats, setMockFormats] = useState<Record<string, MockFormatSpec>>({});
+  const [mockFormats, setMockFormats] = useState<
+    Record<string, MockFormatSpec>
+  >({});
 
   // Selections
-  const [selectedExamType, setSelectedExamType] = useState<ExamType | null>(null);
+  const [selectedExamType, setSelectedExamType] = useState<ExamType | null>(
+    null,
+  );
   const [selectedSubjects, setSelectedSubjects] = useState<Subject[]>([]);
   const [selectedYear, setSelectedYear] = useState<Year | null>(null);
   const [shuffle, setShuffle] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [prepareStatus, setPrepareStatus] = useState<string | null>(null);
 
   // Configuration derived from mock formats
   const maxSubjects = 4;
@@ -63,23 +122,30 @@ export default function MockSetupScreen() {
         setIsLoading(true);
         setError(null);
         const [examRes, subjectsRes, yearsRes, formatsRes] = await Promise.all([
-          api.get('/config/exam-types'),
-          api.get('/config/subjects'),
-          api.get('/config/years'),
-          api.get('/config/mock-formats'),
+          api.get("/config/exam-types"),
+          api.get("/config/subjects"),
+          api.get("/config/years"),
+          api.get("/config/mock-formats"),
         ]);
         setExamTypes(examRes.data?.data ?? []);
         setSubjects(subjectsRes.data?.data ?? []);
         // include a "Random" year option like the web version
-        setYears([{ year: 'random', label: 'Random' }, ...(yearsRes.data?.data ?? [])]);
+        setYears([
+          { year: "random", label: "Random" },
+          ...normalizeYears(yearsRes.data?.data ?? yearsRes.data ?? []),
+        ]);
         setMockFormats(formatsRes.data?.data ?? {});
         // Default selections
-        if (examRes.data?.data?.length) setSelectedExamType(examRes.data.data[0]);
-        if (subjectsRes.data?.data?.length) setSelectedSubjects([subjectsRes.data.data[0]]);
-        setSelectedYear({ year: 'random', label: 'Random' });
+        if (examRes.data?.data?.length)
+          setSelectedExamType(examRes.data.data[0]);
+        if (subjectsRes.data?.data?.length)
+          setSelectedSubjects([subjectsRes.data.data[0]]);
+        setSelectedYear({ year: "random", label: "Random" });
       } catch (e) {
         console.warn(e);
-        setError('Failed to load configuration. Please check your network connection.');
+        setError(
+          "Failed to load configuration. Please check your network connection.",
+        );
       } finally {
         setIsLoading(false);
       }
@@ -97,24 +163,70 @@ export default function MockSetupScreen() {
   };
 
   const startMock = async () => {
-    if (!selectedExamType) return;
+    if (!selectedExamType) {
+      return;
+    }
+
     try {
+      setIsPreparing(true);
+      setPrepareStatus("Checking selected subjects...");
+      const selectedYearForDownload = toNumericYear(selectedYear);
+
+      const { downloadedNow } = await downloadMissingSubjects(
+        selectedSubjects.map((subject) => ({
+          id: subject.id,
+          name: subject.name,
+        })),
+        {
+          year: selectedYearForDownload,
+          onProgress: (progress) => {
+            if (progress.phase === "checking") {
+              setPrepareStatus(`Checking ${progress.subjectName}...`);
+            }
+
+            if (progress.phase === "downloading") {
+              setPrepareStatus(`Downloading ${progress.subjectName}...`);
+            }
+
+            if (
+              progress.phase === "page" &&
+              progress.currentPage &&
+              progress.lastPage
+            ) {
+              setPrepareStatus(
+                `Downloading ${progress.subjectName}: page ${progress.currentPage}/${progress.lastPage}`,
+              );
+            }
+          },
+        },
+      );
+
+      setPrepareStatus("Creating mock session...");
+
       const payload = {
         exam_type_id: selectedExamType.id,
         subject_ids: selectedSubjects.map((s) => s.id),
         year: selectedYear?.year ?? null,
         shuffle,
       };
-      const res = await api.post('/mock/sessions', payload);
+      const res = await api.post("/mock/sessions", payload);
       // Assuming the API returns a session ID and a route to start the exam
       const sessionId = res.data?.data?.id;
       // Navigate to mock exam screen – placeholder navigation logic
       // Replace with your app's navigation method
       // e.g., router.push(`/mock/${sessionId}`);
-      console.log('Mock session created', sessionId);
+      console.log("Mock session created", sessionId);
+
+      Alert.alert(
+        "Mock session ready",
+        `${downloadedNow.length > 0 ? `${downloadedNow.length} subject pack(s) downloaded. ` : ""}${sessionId ? `Session: ${sessionId}` : "You can now proceed to questions."}`,
+      );
     } catch (e) {
       console.warn(e);
-      setError('Failed to start mock exam. Please try again later.');
+      setError("Failed to start mock exam. Please try again later.");
+    } finally {
+      setIsPreparing(false);
+      setPrepareStatus(null);
     }
   };
 
@@ -123,7 +235,9 @@ export default function MockSetupScreen() {
     return (
       <View className="flex-1 items-center justify-center bg-neutral-50 dark:bg-neutral-950">
         <ActivityIndicator size="large" color="#4f46e5" />
-        <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">Loading options...</BodyText>
+        <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">
+          Loading options...
+        </BodyText>
       </View>
     );
   }
@@ -132,7 +246,9 @@ export default function MockSetupScreen() {
     return (
       <View className="flex-1 items-center justify-center bg-neutral-50 dark:bg-neutral-950 px-8">
         <MaterialIcons name="cloud-off" size={48} color="#a1a1aa" />
-        <BodyText className="mt-4 text-center text-neutral-900 dark:text-neutral-400">{error}</BodyText>
+        <BodyText className="mt-4 text-center text-neutral-900 dark:text-neutral-400">
+          {error}
+        </BodyText>
       </View>
     );
   }
@@ -141,89 +257,127 @@ export default function MockSetupScreen() {
     <View className="flex-1 bg-neutral-50 dark:bg-neutral-950">
       {/* Header */}
       <View className="pt-16 pb-6 px-6 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-        <Heading size="xl" className="mb-2">Mock Exam Setup</Heading>
+        <Heading size="xl" className="mb-2">
+          Mock Exam Setup
+        </Heading>
         <BodyText className="text-neutral-900 dark:text-neutral-400">
-          Choose exam type, year and up to {maxSubjects} subjects for a full mock experience.
+          Choose exam type, year and up to {maxSubjects} subjects for a full
+          mock experience.
         </BodyText>
       </View>
 
-      <ScrollView className="flex-1 px-4 pt-6" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1 px-4 pt-6"
+        showsVerticalScrollIndicator={false}
+      >
         <View className="flex-1">
-        {/* Exam Type Selection */}
-                <Subheading size="md" className="mb-3 px-2">Select Exam Type</Subheading>
-        <View className="flex flex-wrap gap-2 mb-8 pl-2">
-          {examTypes.map((et) => (
-            <Button
-              key={et.id}
-              variant={selectedExamType?.id === et.id ? 'primary' : 'secondary'}
-              onPress={() => setSelectedExamType(et)}
-              className="mr-3"
-            >
-              {et.name}
-            </Button>
-          ))}
-        </View>
-
-        {/* Year Selection */}
-        <Subheading size="md" className="mb-3 px-2">Select Year</Subheading>
-        <View className="flex-row flex-wrap px-2 mb-6">
-          {years.map((y) => (
-            <Button
-              key={String(y.year)}
-              variant={selectedYear?.year === y.year ? 'primary' : 'secondary'}
-              onPress={() => setSelectedYear(y)}
-              className="mr-3 mb-3"
-            >
-              {y.label ?? y.year}
-            </Button>
-          ))}
-        </View>
-
-        {/* Subject Selection */}
-        <Subheading size="md" className="mb-3 px-2">Select Subjects (max {maxSubjects})</Subheading>
-        <View className="flex-row flex-wrap px-2 mb-6">
-          {subjects.map((sub) => {
-            const selected = selectedSubjects.find((s) => s.id === sub.id);
-            const canSelect = selectedSubjects.length < maxSubjects || !!selected;
-            return (
+          {/* Exam Type Selection */}
+          <Subheading size="md" className="mb-3 px-2">
+            Select Exam Type
+          </Subheading>
+          <View className="flex flex-wrap gap-2 mb-8 pl-2">
+            {examTypes.map((et) => (
               <Button
-                key={sub.id}
-                variant={selected ? 'primary' : 'secondary'}
-                onPress={() => toggleSubject(sub)}
-                disabled={!canSelect && !selected}
-                className="mr-3 mb-3"
+                key={et.id}
+                variant={selectedExamType?.id === et.id ? "primary" : "outline"}
+                onPress={() => setSelectedExamType(et)}
+                size="sm"
+                style={{ marginRight: 12, marginBottom: 12 }}
               >
-                {sub.name}
+                {et.name}
               </Button>
-            );
-          })}
-        </View>
-
-        {/* Options */}
-        <Subheading size="md" className="mb-3 px-2">Options</Subheading>
-        <Card variant="bordered" padding="md" className="mb-24 bg-white dark:bg-neutral-900">
-          <View className="flex-row items-center justify-between mb-4">
-            <BodyText className="font-medium">Shuffle Questions</BodyText>
-            <Switch
-              value={shuffle}
-              onValueChange={setShuffle}
-              trackColor={{ false: isDark ? '#3f3f46' : '#e4e4e7', true: '#4f46e5' }}
-            />
+            ))}
           </View>
-        </Card>
-      </View>
+
+          {/* Year Selection */}
+          <Subheading size="md" className="mb-3 px-2">
+            Select Year
+          </Subheading>
+          <View className="flex-row flex-wrap px-2 mb-6">
+            {years.map((y) => (
+              <Button
+                key={String(y.year)}
+                variant={selectedYear?.year === y.year ? "primary" : "outline"}
+                onPress={() => setSelectedYear(y)}
+                size="sm"
+                style={{ marginRight: 12, marginBottom: 12 }}
+              >
+                {y.label ?? y.year}
+              </Button>
+            ))}
+          </View>
+
+          {/* Subject Selection */}
+          <Subheading size="md" className="mb-3 px-2">
+            Select Subjects (max {maxSubjects})
+          </Subheading>
+          <View className="flex-row flex-wrap px-2 mb-6">
+            {subjects.map((sub) => {
+              const selected = selectedSubjects.find((s) => s.id === sub.id);
+              const canSelect =
+                selectedSubjects.length < maxSubjects || !!selected;
+              return (
+                <Button
+                  key={sub.id}
+                  variant={selected ? "primary" : "outline"}
+                  onPress={() => toggleSubject(sub)}
+                  disabled={!canSelect && !selected}
+                  size="sm"
+                  style={{ marginRight: 12, marginBottom: 12 }}
+                >
+                  {sub.name}
+                </Button>
+              );
+            })}
+          </View>
+
+          {/* Options */}
+          <Subheading size="md" className="mb-3 px-2">
+            Options
+          </Subheading>
+          <Card
+            variant="bordered"
+            padding="md"
+            className="mb-24 bg-white dark:bg-neutral-900"
+          >
+            <View className="flex-row items-center justify-between mb-4">
+              <BodyText className="font-medium">Shuffle Questions</BodyText>
+              <Switch
+                value={shuffle}
+                onValueChange={setShuffle}
+                trackColor={{
+                  false: isDark ? "#3f3f46" : "#e4e4e7",
+                  true: "#4f46e5",
+                }}
+              />
+            </View>
+          </Card>
+        </View>
       </ScrollView>
 
       {/* Sticky Bottom Action */}
       <View className="absolute bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-neutral-950/90 backdrop-blur-lg border-t border-neutral-200 dark:border-neutral-800">
+        {isPreparing && prepareStatus ? (
+          <View className="flex-row items-center mb-3">
+            <ActivityIndicator size="small" color="#4f46e5" />
+            <Caption className="ml-2 text-neutral-700 dark:text-neutral-300">
+              {prepareStatus}
+            </Caption>
+          </View>
+        ) : null}
+
         <Button
-          title="Start Mock Exam"
           onPress={startMock}
-          disabled={!selectedExamType || selectedSubjects.length === 0}
+          disabled={
+            !selectedExamType || selectedSubjects.length === 0 || isPreparing
+          }
+          loading={isPreparing}
           size="lg"
           variant="primary"
-          className="w-full"
-        />
+          fullWidth
+        >
+          Start Mock Exam
+        </Button>
       </View>
     </View>
   );

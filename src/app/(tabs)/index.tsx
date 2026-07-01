@@ -1,107 +1,181 @@
-import React from 'react';
-import { View, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
-import { Card, Button, Badge } from '@/components';
-import { Heading, Subheading, BodyText, Caption } from '@/components/Typography';
-import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from "react";
+import {
+  RefreshControl,
+  ScrollView,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { MaterialIcons } from "@expo/vector-icons";
+import api from "@/lib/api";
+import { Card } from "@/components";
+import {
+  BodyText,
+  Caption,
+  Heading,
+  Subheading,
+} from "@/components/Typography";
 
-export default function DashboardScreen() {
-  const { user } = useAuth();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+type Subject = {
+  id: number;
+  name: string;
+  code?: string;
+};
+
+export default function HomeScreen() {
   const router = useRouter();
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+
+  const loadDashboard = async (): Promise<void> => {
+    const response = await api.get("/subjects");
+    const subjectList: Subject[] = response.data?.data ?? response.data ?? [];
+
+    setSubjects(subjectList);
+  };
+
+  useEffect(() => {
+    loadDashboard().catch((error) => {
+      console.warn("Failed to load home dashboard", error);
+    });
+  }, []);
+
+  const onRefresh = async (): Promise<void> => {
+    setIsRefreshing(true);
+
+    try {
+      await loadDashboard();
+    } catch (error) {
+      console.warn("Failed to refresh home dashboard", error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
-    <ScrollView className="flex-1 bg-neutral-50 dark:bg-neutral-950" showsVerticalScrollIndicator={false}>
-      {/* Header Section */}
-      <View className="bg-primary-600 pt-16 pb-20 px-6 rounded-b-[40px] shadow-lg">
-        <View className="flex-row justify-between items-center mb-6">
-          <View>
-            <BodyText className="text-primary-100 font-medium mb-1">{getGreeting()},</BodyText>
-            <Heading size="xl" className="text-white">{user?.name || 'Student'} 👋</Heading>
-          </View>
-          <TouchableOpacity className="w-12 h-12 bg-white/20 rounded-full items-center justify-center border border-white/30 backdrop-blur-md">
-            <MaterialIcons name="notifications-none" size={24} color="#ffffff" />
-            {/* Notification Dot */}
-            <View className="absolute top-3 right-3 w-2.5 h-2.5 bg-error-500 rounded-full border border-primary-600" />
-          </TouchableOpacity>
-        </View>
+    <View className="flex-1 bg-neutral-50 dark:bg-neutral-950">
+      <View className="pt-16 pb-6 px-6 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+        <Heading size="xl" className="mb-2">
+          Student Dashboard
+        </Heading>
+        <BodyText className="text-neutral-500 dark:text-neutral-400">
+          Quick access to practice, JAMB, and mock exams.
+        </BodyText>
       </View>
 
-      {/* Main Content (Shifted up to overlap header) */}
-      <View className="px-5 -mt-12">
-        {/* Quick Stats Row */}
-        <View className="flex-row justify-between mb-6">
-          <Card className="flex-1 mr-2 p-4 items-center justify-center border-0 shadow-sm">
-            <View className="w-12 h-12 rounded-full bg-success-100 dark:bg-success-900/30 items-center justify-center mb-2">
-              <MaterialIcons name="emoji-events" size={24} color="#10b981" />
-            </View>
-            <Heading size="lg" className="text-neutral-900 dark:text-neutral-50 mb-1">0</Heading>
-            <Caption className="text-neutral-900 text-center">Mock Score</Caption>
-          </Card>
-          
-          <Card className="flex-1 ml-2 p-4 items-center justify-center border-0 shadow-sm">
-            <View className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-900/30 items-center justify-center mb-2">
-              <MaterialIcons name="local-fire-department" size={24} color="#4f46e5" />
-            </View>
-            <Heading size="lg" className="text-neutral-900 dark:text-neutral-50 mb-1">0</Heading>
-            <Caption className="text-neutral-900 text-center">Day Streak</Caption>
-          </Card>
-        </View>
+      <ScrollView
+        className="flex-1 px-4 pt-4"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor="#4f46e5"
+          />
+        }
+      >
+        <Subheading size="md" className="mb-3 px-1">
+          Quick Access
+        </Subheading>
 
-        {/* Quick Actions */}
-        <Subheading size="lg" className="mb-4">Quick Actions</Subheading>
-        <View className="flex-row justify-between mb-8">
-          <TouchableOpacity 
-            className="flex-1 bg-white dark:bg-neutral-900 p-4 rounded-2xl items-center mr-2 border border-neutral-100 dark:border-neutral-800 shadow-sm"
-            onPress={() => router.push('/(tabs)/practice-setup')}
+        <View className="flex-row flex-wrap justify-between">
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/practice-setup")}
+            activeOpacity={0.8}
+            className="w-[48%] mb-4"
           >
-            <View className="w-14 h-14 rounded-full bg-primary-50 dark:bg-primary-900/20 items-center justify-center mb-3">
-              <MaterialIcons name="menu-book" size={28} color="#4f46e5" />
-            </View>
-            <BodyText className="font-semibold text-center mb-1">Practice</BodyText>
-            <Caption className="text-neutral-900 text-center">Topic by topic</Caption>
+            <Card variant="bordered" className="bg-white dark:bg-neutral-900">
+              <View className="w-11 h-11 rounded-xl bg-orange-100 dark:bg-orange-900/30 items-center justify-center mb-3">
+                <MaterialIcons name="menu-book" size={22} color="#ea580c" />
+              </View>
+              <Subheading size="md">Practice</Subheading>
+              <Caption className="mt-1 text-neutral-500 dark:text-neutral-400">
+                Set up a focused subject practice session
+              </Caption>
+            </Card>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            className="flex-1 bg-white dark:bg-neutral-900 p-4 rounded-2xl items-center ml-2 border border-neutral-100 dark:border-neutral-800 shadow-sm"
-            onPress={() => router.push('/(tabs)/mock-setup')}
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/jamb-setup")}
+            activeOpacity={0.8}
+            className="w-[48%] mb-4"
           >
-            <View className="w-14 h-14 rounded-full bg-secondary-50 dark:bg-secondary-900/20 items-center justify-center mb-3">
-              <MaterialIcons name="timer" size={28} color="#e11d48" />
-            </View>
-            <BodyText className="font-semibold text-center mb-1">Take Mock</BodyText>
-            <Caption className="text-neutral-900 text-center">Full exam</Caption>
+            <Card variant="bordered" className="bg-white dark:bg-neutral-900">
+              <View className="w-11 h-11 rounded-xl bg-blue-100 dark:bg-blue-900/30 items-center justify-center mb-3">
+                <MaterialIcons name="auto-stories" size={22} color="#2563eb" />
+              </View>
+              <Subheading size="md">JAMB</Subheading>
+              <Caption className="mt-1 text-neutral-500 dark:text-neutral-400">
+                Start the standard 4-subject JAMB flow
+              </Caption>
+            </Card>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/mock-setup")}
+            activeOpacity={0.8}
+            className="w-[48%] mb-4"
+          >
+            <Card variant="bordered" className="bg-white dark:bg-neutral-900">
+              <View className="w-11 h-11 rounded-xl bg-purple-100 dark:bg-purple-900/30 items-center justify-center mb-3">
+                <MaterialIcons name="timer" size={22} color="#7c3aed" />
+              </View>
+              <Subheading size="md">Mock Exam</Subheading>
+              <Caption className="mt-1 text-neutral-500 dark:text-neutral-400">
+                Create a timed mock exam session
+              </Caption>
+            </Card>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.push("/(tabs)/settings")}
+            activeOpacity={0.8}
+            className="w-[48%] mb-4"
+          >
+            <Card variant="bordered" className="bg-white dark:bg-neutral-900">
+              <View className="w-11 h-11 rounded-xl bg-neutral-200 dark:bg-neutral-800 items-center justify-center mb-3">
+                <MaterialIcons name="settings" size={22} color="#52525b" />
+              </View>
+              <Subheading size="md">Settings</Subheading>
+              <Caption className="mt-1 text-neutral-500 dark:text-neutral-400">
+                Theme, account, and app preferences
+              </Caption>
+            </Card>
           </TouchableOpacity>
         </View>
 
-        {/* Recent Activity Placeholder */}
-        <View className="flex-row justify-between items-end mb-4">
-          <Subheading size="lg">Recent Activity</Subheading>
-          <TouchableOpacity>
-            <BodyText className="text-primary-600 font-medium text-sm">View All</BodyText>
-          </TouchableOpacity>
-        </View>
-        
-        <Card variant="bordered" padding="md" className="mb-10 items-center py-10">
-          <View className="w-16 h-16 rounded-full bg-neutral-100 dark:bg-neutral-800 items-center justify-center mb-4">
-            <MaterialIcons name="history" size={32} color={isDark ? '#a1a1aa' : '#a1a1aa'} />
+        <Card variant="bordered" className="mt-2 bg-white dark:bg-neutral-900">
+          <View className="flex-row items-center justify-between mb-3">
+            <Subheading size="md">My Subjects</Subheading>
+            <Caption className="text-neutral-500 dark:text-neutral-400">
+              {subjects.length}
+            </Caption>
           </View>
-          <BodyText className="font-medium text-center mb-2">No activity yet</BodyText>
-          <Caption className="text-neutral-900 text-center px-4">
-            Your recent practice sessions and mock exam results will appear here.
-          </Caption>
+
+          {subjects.length === 0 ? (
+            <BodyText variant="subtle">No enrolled subjects yet.</BodyText>
+          ) : (
+            <View className="gap-2">
+              {subjects.map((subject) => (
+                <View
+                  key={subject.id}
+                  className="flex-row items-center justify-between py-2 border-b border-neutral-100 dark:border-neutral-800"
+                >
+                  <BodyText>{subject.name}</BodyText>
+                  {subject.code ? (
+                    <Caption className="text-neutral-500 dark:text-neutral-400">
+                      {subject.code}
+                    </Caption>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          )}
         </Card>
-      </View>
-    </ScrollView>
+
+        <View className="h-8" />
+      </ScrollView>
+    </View>
   );
 }

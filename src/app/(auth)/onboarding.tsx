@@ -1,12 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'expo-router';
-import { View, ScrollView, ActivityIndicator, Alert, SafeAreaView, TouchableOpacity } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
-import { Button, Card } from '@/components';
-import { Heading, BodyText, Subheading } from '@/components/Typography';
-import api from '@/lib/api';
+import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "expo-router";
+import {
+  View,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  TouchableOpacity,
+} from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
+import { Button, Card } from "@/components";
+import { Heading, BodyText, Subheading } from "@/components/Typography";
+import api from "@/lib/api";
 
 type Subject = {
   id: number;
@@ -16,36 +23,59 @@ type Subject = {
 };
 
 const STREAMS = [
-  { id: 'science', name: 'Science', description: 'Physics, Chemistry, Biology, Math', subjects: ['Mathematics', 'English Language', 'Physics', 'Chemistry'], icon: 'science' },
-  { id: 'arts', name: 'Arts', description: 'Literature, Government, History', subjects: ['Mathematics', 'English Language', 'Literature in English', 'Government'], icon: 'palette' },
-  { id: 'commercial', name: 'Commercial', description: 'Accounting, Commerce, Economics', subjects: ['Mathematics', 'English Language', 'Economics', 'Commerce'], icon: 'account-balance' },
+  {
+    id: "science",
+    name: "Science",
+    description: "Physics, Chemistry, Biology, Math",
+    subjects: ["Mathematics", "English Language", "Physics", "Chemistry"],
+    icon: "science",
+  },
+  {
+    id: "arts",
+    name: "Arts",
+    description: "Literature, Government, History",
+    subjects: [
+      "Mathematics",
+      "English Language",
+      "Literature in English",
+      "Government",
+    ],
+    icon: "palette",
+  },
+  {
+    id: "commercial",
+    name: "Commercial",
+    description: "Accounting, Commerce, Economics",
+    subjects: ["Mathematics", "English Language", "Economics", "Commerce"],
+    icon: "account-balance",
+  },
 ];
 
 export default function OnboardingScreen() {
   const { user, updateUser } = useAuth();
   const router = useRouter();
 
-useEffect(() => {
-  if (user?.has_completed_onboarding) {
-    router.replace('/(tabs)');
-  }
-}, [user, router]);
+  useEffect(() => {
+    if (user?.has_completed_onboarding) {
+      router.replace("/(tabs)");
+    }
+  }, [user, router]);
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
-  
+  const isDark = theme === "dark";
+
   const [loading, setLoading] = useState(false);
   const [fetchingSubjects, setFetchingSubjects] = useState(true);
   const [subjectError, setSubjectError] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  
-  const [mode, setMode] = useState<'stream' | 'manual'>('stream');
+
+  const [mode, setMode] = useState<"stream" | "manual">("stream");
   const [selectedStream, setSelectedStream] = useState<string | null>(null);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
   const step = useMemo(() => {
-    if (mode === 'stream') {
+    if (mode === "stream") {
       return selectedStream ? 2 : 1;
     }
-    if (mode === 'manual') {
+    if (mode === "manual") {
       return selectedSubjects.length > 0 ? 3 : 2;
     }
     return 1;
@@ -53,12 +83,16 @@ useEffect(() => {
   useEffect(() => {
     const loadSubjects = async () => {
       try {
-        const response = await api.get('/config/subjects');
-        const subjectsData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        const response = await api.get("/config/subjects");
+        const subjectsData = Array.isArray(response.data)
+          ? response.data
+          : response.data?.data || [];
         setSubjects(subjectsData);
       } catch (error) {
-        console.log('Error fetching subjects:', error);
-        setSubjectError('Could not load subjects. Please check your connection.');
+        console.log("Error fetching subjects:", error);
+        setSubjectError(
+          "Could not load subjects. Please check your connection.",
+        );
       } finally {
         setFetchingSubjects(false);
       }
@@ -67,12 +101,12 @@ useEffect(() => {
   }, []);
 
   const toggleSubject = (subjectId: number) => {
-    setSelectedSubjects(prev => {
+    setSelectedSubjects((prev) => {
       if (prev.includes(subjectId)) {
-        return prev.filter(id => id !== subjectId);
+        return prev.filter((id) => id !== subjectId);
       }
       if (prev.length >= 4) {
-        Alert.alert('Limit Reached', 'You can only select up to 4 subjects.');
+        Alert.alert("Limit Reached", "You can only select up to 4 subjects.");
         return prev;
       }
       return [...prev, subjectId];
@@ -80,21 +114,47 @@ useEffect(() => {
   };
 
   const handleComplete = async () => {
-    if (mode === 'stream' && !selectedStream) {
-      Alert.alert('Selection Required', 'Please select a stream to continue');
+    if (mode === "stream" && !selectedStream) {
+      Alert.alert("Selection Required", "Please select a stream to continue");
       return;
     }
-    if (mode === 'manual' && selectedSubjects.length === 0) {
-      Alert.alert('Selection Required', 'Please select at least one subject');
+    if (mode === "manual" && selectedSubjects.length === 0) {
+      Alert.alert("Selection Required", "Please select at least one subject");
       return;
     }
 
     setLoading(true);
     try {
+      const selectedStreamConfig = STREAMS.find(
+        (stream) => stream.id === selectedStream,
+      );
+
+      const streamSubjectIds =
+        mode === "stream" && selectedStreamConfig
+          ? subjects
+              .filter((subject) =>
+                selectedStreamConfig.subjects.includes(subject.name),
+              )
+              .map((subject) => subject.id)
+          : [];
+
+      const finalSubjectIds =
+        mode === "stream" ? streamSubjectIds : selectedSubjects;
+      const finalStreamValue = mode === "stream" ? selectedStream : "manual";
+
+      if (finalSubjectIds.length === 0) {
+        Alert.alert(
+          "Selection Required",
+          "No matching subjects were found for your selection. Please choose subjects manually.",
+        );
+        setLoading(false);
+        return;
+      }
+
       // Save onboarding data via API
-      await api.post('/onboarding', {
-        stream: selectedStream,
-        subjects: selectedSubjects,
+      await api.post("/onboarding", {
+        stream: finalStreamValue,
+        subjects: finalSubjectIds,
       });
 
       // Update auth context with new flag
@@ -103,10 +163,13 @@ useEffect(() => {
       }
 
       // Navigate to main dashboard (tabs)
-      router.replace('/(tabs)');
+      router.replace("/(tabs)");
     } catch (error) {
-      console.log('Onboarding error:', error);
-      Alert.alert('Error', 'Failed to save your preferences. Please try again.');
+      console.log("Onboarding error:", error);
+      Alert.alert(
+        "Error",
+        "Failed to save your preferences. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -114,76 +177,125 @@ useEffect(() => {
 
   const getSubjectIcon = (name: string) => {
     const lowerName = name.toLowerCase();
-    if (lowerName.includes('math')) return 'calculate';
-    if (lowerName.includes('english')) return 'menu-book';
-    if (lowerName.includes('physics')) return 'science';
-    if (lowerName.includes('chemistry')) return 'science';
-    if (lowerName.includes('biology')) return 'biotech';
-    if (lowerName.includes('econ')) return 'trending-up';
-    if (lowerName.includes('gov')) return 'account-balance';
-    return 'library-books';
+    if (lowerName.includes("math")) return "calculate";
+    if (lowerName.includes("english")) return "menu-book";
+    if (lowerName.includes("physics")) return "science";
+    if (lowerName.includes("chemistry")) return "science";
+    if (lowerName.includes("biology")) return "biotech";
+    if (lowerName.includes("econ")) return "trending-up";
+    if (lowerName.includes("gov")) return "account-balance";
+    return "library-books";
   };
 
   return (
-    <SafeAreaView className={`flex-1 ${isDark ? 'bg-neutral-950' : 'bg-white'}`}>
+    <SafeAreaView
+      className={`flex-1 ${isDark ? "bg-neutral-950" : "bg-white"}`}
+    >
       <View className="px-6 pt-10 pb-4">
         <View className="w-14 h-14 rounded-2xl bg-primary-100 dark:bg-primary-900/30 items-center justify-center mb-4">
           <MaterialIcons name="auto-awesome" size={28} color="#4f46e5" />
         </View>
-        <Heading size="xl" className="text-neutral-900 dark:text-neutral-50">Personalize Your Setup</Heading>
-        <BodyText variant="subtle" className="mt-2">Choose how you want to prepare. You can pick a curated stream or manually select your subjects.</BodyText>
-        
+        <Heading size="xl" className="text-neutral-900 dark:text-neutral-50">
+          Personalize Your Setup
+        </Heading>
+        <BodyText variant="subtle" className="mt-2">
+          Choose how you want to prepare. You can pick a curated stream or
+          manually select your subjects.
+        </BodyText>
+
         {/* Progress Bar */}
         <View className="flex flex-row justify-between mb-3 mt-6">
           <BodyText className="text-sm text-neutral-600 dark:text-neutral-400">{`Step ${step} of 3`}</BodyText>
-          <BodyText className="text-sm text-neutral-600 dark:text-neutral-400">{`${Math.round((step/3)*100)}% Complete`}</BodyText>
+          <BodyText className="text-sm text-neutral-600 dark:text-neutral-400">{`${Math.round((step / 3) * 100)}% Complete`}</BodyText>
         </View>
         <View className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2 mb-4">
-          <View style={{width: `${(step/3)*100}%`}} className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full" />
+          <View
+            style={{ width: `${(step / 3) * 100}%` }}
+            className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full"
+          />
         </View>
-        
+
         {/* Toggle Mode */}
         <View className="flex-row mt-6 bg-neutral-100 dark:bg-neutral-900 p-1 rounded-xl">
-          <TouchableOpacity 
-            className={`flex-1 py-2 items-center justify-center rounded-lg ${mode === 'stream' ? 'bg-white dark:bg-neutral-800 shadow-sm border border-neutral-200 dark:border-neutral-700' : ''}`}
-            onPress={() => setMode('stream')}
+          <TouchableOpacity
+            className={`flex-1 py-2 items-center justify-center rounded-lg ${mode === "stream" ? "bg-white dark:bg-neutral-800 shadow-sm border border-neutral-200 dark:border-neutral-700" : ""}`}
+            onPress={() => setMode("stream")}
           >
-            <BodyText className={`font-semibold ${mode === 'stream' ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-900 dark:text-neutral-400'}`}>Pick a Stream</BodyText>
+            <BodyText
+              className={`font-semibold ${mode === "stream" ? "text-primary-600 dark:text-primary-400" : "text-neutral-900 dark:text-neutral-400"}`}
+            >
+              Pick a Stream
+            </BodyText>
           </TouchableOpacity>
-          <TouchableOpacity 
-            className={`flex-1 py-2 items-center justify-center rounded-lg ${mode === 'manual' ? 'bg-white dark:bg-neutral-800 shadow-sm border border-neutral-200 dark:border-neutral-700' : ''}`}
-            onPress={() => setMode('manual')}
+          <TouchableOpacity
+            className={`flex-1 py-2 items-center justify-center rounded-lg ${mode === "manual" ? "bg-white dark:bg-neutral-800 shadow-sm border border-neutral-200 dark:border-neutral-700" : ""}`}
+            onPress={() => setMode("manual")}
           >
-            <BodyText className={`font-semibold ${mode === 'manual' ? 'text-primary-600 dark:text-primary-400' : 'text-neutral-900 dark:text-neutral-400'}`}>Select Manual</BodyText>
+            <BodyText
+              className={`font-semibold ${mode === "manual" ? "text-primary-600 dark:text-primary-400" : "text-neutral-900 dark:text-neutral-400"}`}
+            >
+              Select Manual
+            </BodyText>
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
-        {mode === 'stream' ? (
+        {mode === "stream" ? (
           <View className="space-y-4 pt-2 pb-8">
             {STREAMS.map((stream) => (
               <Card
                 key={stream.id}
-                variant={selectedStream === stream.id ? 'bordered' : 'elevated'}
+                variant={selectedStream === stream.id ? "bordered" : "elevated"}
                 padding="md"
                 onPress={() => setSelectedStream(stream.id)}
-                className={selectedStream === stream.id ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : ''}
+                className={
+                  selectedStream === stream.id
+                    ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
+                    : ""
+                }
               >
                 <View className="flex-row items-start space-x-4">
-                  <MaterialIcons name={stream.icon as any} size={28} color={isDark ? '#a1a1aa' : '#71717a'} />
+                  <MaterialIcons
+                    name={stream.icon as any}
+                    size={28}
+                    color={isDark ? "#a1a1aa" : "#71717a"}
+                  />
                   <View className="flex-1">
-                    <Subheading size="lg" className={selectedStream === stream.id ? 'text-primary-700 dark:text-primary-400' : ''}>{stream.name}</Subheading>
-                    <BodyText variant="subtle" size="sm" className="mt-1">{stream.description}</BodyText>
+                    <Subheading
+                      size="lg"
+                      className={
+                        selectedStream === stream.id
+                          ? "text-primary-700 dark:text-primary-400"
+                          : ""
+                      }
+                    >
+                      {stream.name}
+                    </Subheading>
+                    <BodyText variant="subtle" size="sm" className="mt-1">
+                      {stream.description}
+                    </BodyText>
                   </View>
-                  <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${selectedStream === stream.id ? 'bg-primary-600 border-primary-600' : 'border-neutral-300 dark:border-neutral-600'}`}>
-                    {selectedStream === stream.id && <MaterialIcons name="check" size={14} color="white" />}
+                  <View
+                    className={`w-6 h-6 rounded-full border-2 items-center justify-center ${selectedStream === stream.id ? "bg-primary-600 border-primary-600" : "border-neutral-300 dark:border-neutral-600"}`}
+                  >
+                    {selectedStream === stream.id && (
+                      <MaterialIcons name="check" size={14} color="white" />
+                    )}
                   </View>
                 </View>
                 <View className="flex-row flex-wrap gap-2 mt-4">
-                  {stream.subjects.map(sub => (
-                    <View key={sub} className="bg-white dark:bg-neutral-800 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700">
-                      <BodyText size="xs" className="text-neutral-600 dark:text-neutral-300">{sub}</BodyText>
+                  {stream.subjects.map((sub) => (
+                    <View
+                      key={sub}
+                      className="bg-white dark:bg-neutral-800 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
+                    >
+                      <BodyText
+                        size="xs"
+                        className="text-neutral-600 dark:text-neutral-300"
+                      >
+                        {sub}
+                      </BodyText>
                     </View>
                   ))}
                 </View>
@@ -194,16 +306,22 @@ useEffect(() => {
           <View className="pt-2 pb-8">
             <View className="flex-row justify-between items-center mb-4">
               <Subheading>Available Subjects</Subheading>
-              <BodyText variant="subtle" size="sm">{selectedSubjects.length}/4 Selected</BodyText>
+              <BodyText variant="subtle" size="sm">
+                {selectedSubjects.length}/4 Selected
+              </BodyText>
             </View>
-            
+
             {fetchingSubjects ? (
               <View className="py-10 items-center justify-center">
                 <ActivityIndicator size="large" color="#4f46e5" />
-                <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">Loading subjects...</BodyText>
+                <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">
+                  Loading subjects...
+                </BodyText>
               </View>
             ) : subjectError ? (
-              <BodyText className="text-center text-red-600 dark:text-red-400 mt-4">{subjectError}</BodyText>
+              <BodyText className="text-center text-red-600 dark:text-red-400 mt-4">
+                {subjectError}
+              </BodyText>
             ) : subjects.length > 0 ? (
               <View className="flex-row flex-wrap justify-between gap-y-3">
                 {subjects.map((subject) => {
@@ -213,41 +331,73 @@ useEffect(() => {
                       key={subject.id}
                       onPress={() => toggleSubject(subject.id)}
                       className={`w-[48%] p-3 rounded-xl border ${
-                        isSelected 
-                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
-                          : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'
+                        isSelected
+                          ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
+                          : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
                       }`}
                     >
                       <View className="flex-row justify-between items-start mb-2">
-                        <View className={`w-8 h-8 rounded-full items-center justify-center ${isSelected ? 'bg-primary-600' : 'bg-neutral-100 dark:bg-neutral-800'}`}>
-                          <MaterialIcons name={getSubjectIcon(subject.name)} size={16} color={isSelected ? 'white' : (isDark ? '#a1a1aa' : '#71717a')} />
+                        <View
+                          className={`w-8 h-8 rounded-full items-center justify-center ${isSelected ? "bg-primary-600" : "bg-neutral-100 dark:bg-neutral-800"}`}
+                        >
+                          <MaterialIcons
+                            name={getSubjectIcon(subject.name)}
+                            size={16}
+                            color={
+                              isSelected
+                                ? "white"
+                                : isDark
+                                  ? "#a1a1aa"
+                                  : "#71717a"
+                            }
+                          />
                         </View>
-                        {isSelected && <MaterialIcons name="check-circle" size={20} color="#4f46e5" />}
+                        {isSelected && (
+                          <MaterialIcons
+                            name="check-circle"
+                            size={20}
+                            color="#4f46e5"
+                          />
+                        )}
                       </View>
-                      <BodyText size="sm" className="font-semibold" numberOfLines={1}>{subject.name}</BodyText>
+                      <BodyText
+                        size="sm"
+                        className="font-semibold"
+                        numberOfLines={1}
+                      >
+                        {subject.name}
+                      </BodyText>
                     </TouchableOpacity>
                   );
                 })}
               </View>
-                ) : (
-                  <View className="py-10 items-center justify-center">
-                    <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400 text-center">No subjects available.</BodyText>
-                  </View>
-                )}
+            ) : (
+              <View className="py-10 items-center justify-center">
+                <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400 text-center">
+                  No subjects available.
+                </BodyText>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
 
       <View className="px-6 py-4 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-900">
-        <Button 
-          variant="primary" 
-          size="lg" 
-          fullWidth 
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
           onPress={handleComplete}
-          disabled={loading || (mode === 'manual' && selectedSubjects.length === 0) || (mode === 'stream' && !selectedStream)}
+          disabled={
+            loading ||
+            (mode === "manual" && selectedSubjects.length === 0) ||
+            (mode === "stream" && !selectedStream)
+          }
           loading={loading}
         >
-          {mode === 'manual' ? `Continue with ${selectedSubjects.length} Subject${selectedSubjects.length !== 1 ? 's' : ''}` : 'Continue Setup'}
+          {mode === "manual"
+            ? `Continue with ${selectedSubjects.length} Subject${selectedSubjects.length !== 1 ? "s" : ""}`
+            : "Continue Setup"}
         </Button>
       </View>
     </SafeAreaView>

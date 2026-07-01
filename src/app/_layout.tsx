@@ -5,6 +5,7 @@ import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { ToastProvider } from "@/components/Toast";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { initOfflineDatabase } from "@/lib/offlineDb";
 
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
@@ -14,18 +15,18 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    const inAuthGroup = segments[0] === "(auth)";
 
     if (!user && !inAuthGroup) {
       // Redirect to login if not authenticated
-      router.replace('/(auth)/login');
+      router.replace("/(auth)/login");
     } else if (user) {
-      if (!user.has_completed_onboarding && segments[1] !== 'onboarding') {
+      if (!user.has_completed_onboarding && segments[1] !== "onboarding") {
         // Redirect to onboarding if not completed
-        router.replace('/(auth)/onboarding');
+        router.replace("/(auth)/onboarding");
       } else if (user.has_completed_onboarding && inAuthGroup) {
         // Redirect to tabs if authenticated and onboarded
-        router.replace('/(tabs)');
+        router.replace("/(tabs)");
       }
     }
   }, [user, isLoading, segments]);
@@ -47,6 +48,12 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    initOfflineDatabase().catch((error) => {
+      console.warn("Failed to initialize offline database", error);
+    });
+  }, []);
+
   return (
     <ToastProvider>
       <ThemeProvider>
