@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
 import { Alert, View, ScrollView, ActivityIndicator } from "react-native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -10,7 +11,7 @@ import {
   Caption,
 } from "@/components/Typography";
 import api from "@/lib/api";
-import { downloadMissingSubjects } from "@/lib/offlineDownload";
+import { storage } from "@/lib/storage";
 
 // Types based on API responses
 type ExamType = {
@@ -37,6 +38,7 @@ type MockFormatSpec = {
 export default function MockSetupScreen() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const router = useRouter();
 
   // Loading flags
   const [isLoading, setIsLoading] = useState(true);
@@ -157,36 +159,6 @@ export default function MockSetupScreen() {
 
     try {
       setIsPreparing(true);
-      setPrepareStatus("Checking selected subjects...");
-
-      const { downloadedNow } = await downloadMissingSubjects(
-        selectedSubjects.map((subject) => ({
-          id: subject.id,
-          name: subject.name,
-        })),
-        {
-          onProgress: (progress) => {
-            if (progress.phase === "checking") {
-              setPrepareStatus(`Checking ${progress.subjectName}...`);
-            }
-
-            if (progress.phase === "downloading") {
-              setPrepareStatus(`Downloading ${progress.subjectName}...`);
-            }
-
-            if (
-              progress.phase === "page" &&
-              progress.currentPage &&
-              progress.lastPage
-            ) {
-              setPrepareStatus(
-                `Downloading ${progress.subjectName}: page ${progress.currentPage}/${progress.lastPage}`,
-              );
-            }
-          },
-        },
-      );
-
       setPrepareStatus("Creating mock session...");
 
       const payload = {
@@ -196,20 +168,26 @@ export default function MockSetupScreen() {
         shuffle: true,
       };
       const res = await api.post("/mock/sessions", payload);
-      // Assuming the API returns a session ID and a route to start the exam
-      const sessionId = res.data?.data?.id;
-      // Navigate to mock exam screen – placeholder navigation logic
-      // Replace with your app's navigation method
-      // e.g., router.push(`/mock/${sessionId}`);
-      console.log("Mock session created", sessionId);
+      const sessionData = res.data?.data;
+      const sessionId = sessionData?.mock_session_id ?? sessionData?.session_id;
 
-      Alert.alert(
-        "Mock session ready",
-        `${downloadedNow.length > 0 ? `${downloadedNow.length} subject pack(s) downloaded. ` : ""}${sessionId ? `Session: ${sessionId}` : "You can now proceed to questions."}`,
+      if (!sessionId) {
+        throw new Error("Failed to create a mock session ID.");
+      }
+
+      // Persist the full session payload so the quiz screen can read
+      // subject configs, time limits, etc. without an extra API round-trip.
+      await storage.setItem(
+        `mock_session_${sessionId}`,
+        JSON.stringify(sessionData),
       );
-    } catch (e) {
-      console.warn(e);
-      setError("Failed to start mock exam. Please try again later.");
+
+      router.push(`/mock/${sessionId}`);
+    } catch (e: any) {
+      const message =
+        e.response?.data?.message || e.message || "An unknown error occurred.";
+      Alert.alert("Failed to Start Mock Exam", message);
+      setError(message);
     } finally {
       setIsPreparing(false);
       setPrepareStatus(null);

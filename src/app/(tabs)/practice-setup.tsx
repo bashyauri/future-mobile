@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
 import {
   Alert,
@@ -18,7 +19,6 @@ import {
   Caption,
 } from "@/components/Typography";
 import api from "@/lib/api";
-import { downloadMissingSubjects } from "@/lib/offlineDownload";
 
 type Subject = {
   id: number;
@@ -79,6 +79,7 @@ function toNumericYear(selectedYear: Year | null): number | undefined {
 export default function PracticeSetupScreen() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const router = useRouter();
 
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -230,100 +231,27 @@ export default function PracticeSetupScreen() {
 
     try {
       setIsPreparing(true);
-      setPrepareStatus("Checking offline availability...");
-      const selectedYearForDownload = toNumericYear(selectedYear);
-      const parsedQuestionCount = Number(questionCountInput);
-      const questionCount =
-        questionCountInput.trim().length > 0 &&
-        Number.isFinite(parsedQuestionCount)
-          ? parsedQuestionCount
-          : undefined;
-      const parsedTimeLimit = Number(timeLimitInput);
-      const timeLimit =
-        timeLimitInput.trim().length > 0 && Number.isFinite(parsedTimeLimit)
-          ? parsedTimeLimit
-          : undefined;
-
-      const { downloadedNow } = await downloadMissingSubjects(
-        [
-          {
-            id: selectedSubject.id,
-            name: selectedSubject.name,
-          },
-        ],
-        {
-          year: selectedYearForDownload,
-          onProgress: (progress) => {
-            if (progress.phase === "checking") {
-              setPrepareStatus(`Checking ${progress.subjectName}...`);
-            }
-
-            if (progress.phase === "downloading") {
-              setPrepareStatus(`Downloading ${progress.subjectName}...`);
-            }
-
-            if (
-              progress.phase === "page" &&
-              progress.currentPage &&
-              progress.lastPage
-            ) {
-              setPrepareStatus(
-                `Downloading ${progress.subjectName}: page ${progress.currentPage}/${progress.lastPage}`,
-              );
-            }
-          },
-        },
-      );
-
       setPrepareStatus("Starting practice session...");
 
-      const quizzesResponse = await api.get("/quizzes", {
-        params: {
-          subject_id: selectedSubject.id,
-        },
-      });
-
-      const quizzes = quizzesResponse.data?.data ?? [];
-
-      if (!Array.isArray(quizzes) || quizzes.length === 0) {
-        Alert.alert(
-          "No quiz available",
-          "No practice quiz is currently available for this subject.",
-        );
-
-        return;
+      const queryParams = new URLSearchParams();
+      queryParams.append("subject_id", String(selectedSubject.id));
+      if (selectedExamType) {
+        queryParams.append("exam_type_id", String(selectedExamType.id));
+      }
+      if (selectedYear && selectedYear.year !== "all") {
+        queryParams.append("year", String(selectedYear.year));
+      }
+      if (questionCount) {
+        queryParams.append("limit", String(questionCount));
+      }
+      if (timeLimit) {
+        queryParams.append("time", String(timeLimit));
+      }
+      if (shuffleQuestions) {
+        queryParams.append("shuffle", "true");
       }
 
-      const quizId = quizzes[0]?.id;
-
-      if (!quizId) {
-        Alert.alert(
-          "Could not start",
-          "Quiz could not be initialized right now. Please try again.",
-        );
-
-        return;
-      }
-
-      const startResponse = await api.post(`/quizzes/${quizId}/start`, {
-        shuffle: shuffleQuestions,
-        ...(questionCount ? { question_count: questionCount } : {}),
-        ...(timeLimit ? { time_limit: timeLimit } : {}),
-      });
-
-      const attemptId = startResponse.data?.data?.attempt_id;
-
-      if (downloadedNow.length > 0) {
-        Alert.alert(
-          "Practice started",
-          `${selectedSubject.name} is ready. ${downloadedNow.length} subject pack downloaded.${attemptId ? ` Attempt #${attemptId} created.` : ""}`,
-        );
-      } else {
-        Alert.alert(
-          "Practice started",
-          `${selectedSubject.name} is ready offline.${attemptId ? ` Attempt #${attemptId} created.` : ""}`,
-        );
-      }
+      router.push(`/practice/new?${queryParams.toString()}`);
     } catch (downloadError) {
       const message =
         downloadError instanceof Error

@@ -1,12 +1,13 @@
+import { useRouter } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Alert,
   View,
   ScrollView,
   TouchableOpacity,
   TextInput,
   Switch,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
@@ -18,7 +19,6 @@ import {
   Caption,
 } from "@/components/Typography";
 import api from "@/lib/api";
-import { downloadMissingSubjects } from "@/lib/offlineDownload";
 
 type ExamType = {
   id: number;
@@ -124,6 +124,7 @@ const getSubjectColor = (name: string): string => {
 export default function JambSetupScreen() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const router = useRouter();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [years, setYears] = useState<Year[]>([]);
@@ -236,7 +237,7 @@ export default function JambSetupScreen() {
 
     try {
       setIsPreparing(true);
-      setPrepareStatus("Checking selected subjects...");
+      setPrepareStatus("Validating JAMB session settings...");
       const selectedNumericYear = toNumericYear(selectedYear);
       const parsedQuestionsPerSubject = Number(questionsPerSubjectInput);
       const questionsPerSubject =
@@ -250,37 +251,6 @@ export default function JambSetupScreen() {
           ? parsedTimeLimit
           : undefined;
 
-      const { downloadedNow } = await downloadMissingSubjects(
-        selectedSubjects.map((subject) => ({
-          id: subject.id,
-          name: subject.name,
-        })),
-        {
-          year: selectedNumericYear,
-          onProgress: (progress) => {
-            if (progress.phase === "checking") {
-              setPrepareStatus(`Checking ${progress.subjectName}...`);
-            }
-
-            if (progress.phase === "downloading") {
-              setPrepareStatus(`Downloading ${progress.subjectName}...`);
-            }
-
-            if (
-              progress.phase === "page" &&
-              progress.currentPage &&
-              progress.lastPage
-            ) {
-              setPrepareStatus(
-                `Downloading ${progress.subjectName}: page ${progress.currentPage}/${progress.lastPage}`,
-              );
-            }
-          },
-        },
-      );
-
-      setPrepareStatus("Validating JAMB session settings...");
-
       await api.post("/jamb/sessions", {
         subject_ids: selectedSubjects.map((subject) => subject.id),
         year: selectedNumericYear ?? null,
@@ -291,12 +261,27 @@ export default function JambSetupScreen() {
         shuffle: shuffleQuestions,
       });
 
-      Alert.alert(
-        "JAMB ready",
-        downloadedNow.length > 0
-          ? `${downloadedNow.length} subject(s) were downloaded for this JAMB session. Settings saved: ${questionsPerSubjectInput || "default"} questions/subject, ${timeLimitInput || "no"} time limit, ${shuffleQuestions ? "shuffle on" : "shuffle off"}.`
-          : `All selected subjects are already available offline. Settings saved: ${questionsPerSubjectInput || "default"} questions/subject, ${timeLimitInput || "no"} time limit, ${shuffleQuestions ? "shuffle on" : "shuffle off"}.`,
+      setPrepareStatus("Starting JAMB exam...");
+
+      // Navigate to JAMB quiz screen with all settings as URL params,
+      // mirroring the web's redirect to practice.jamb.quiz
+      const queryParams = new URLSearchParams();
+      queryParams.append(
+        "subjects",
+        selectedSubjects.map((s) => s.id).join(","),
       );
+      if (selectedNumericYear) {
+        queryParams.append("year", String(selectedNumericYear));
+      }
+      if (questionsPerSubject) {
+        queryParams.append("questionsPerSubject", String(questionsPerSubject));
+      }
+      if (timeLimit) {
+        queryParams.append("timeLimit", String(timeLimit));
+      }
+      queryParams.append("shuffle", shuffleQuestions ? "1" : "0");
+
+      router.push(`/jamb/new?${queryParams.toString()}`);
     } catch (downloadError) {
       const message =
         downloadError instanceof Error

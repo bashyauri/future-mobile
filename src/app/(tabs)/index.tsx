@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useNetInfo } from "@react-native-community/netinfo";
 import api from "@/lib/api";
 import { Card } from "@/components";
 import {
@@ -15,6 +16,13 @@ import {
   Heading,
   Subheading,
 } from "@/components/Typography";
+
+type AnalyticsOverview = {
+  total_quizzes: number;
+  average_score: number | null;
+  total_time_spent: number;
+  study_streak: number;
+};
 
 type Subject = {
   id: number;
@@ -25,14 +33,23 @@ type Subject = {
 export default function HomeScreen() {
   const router = useRouter();
 
+  const netInfo = useNetInfo();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null);
 
   const loadDashboard = async (): Promise<void> => {
-    const response = await api.get("/subjects");
-    const subjectList: Subject[] = response.data?.data ?? response.data ?? [];
+    try {
+      const [subjectsRes, analyticsRes] = await Promise.all([
+        api.get("/subjects"),
+        api.get("/analytics/overview")
+      ]);
 
-    setSubjects(subjectList);
+      setSubjects(subjectsRes.data?.data ?? subjectsRes.data ?? []);
+      setAnalytics(analyticsRes.data?.data ?? null);
+    } catch (e) {
+      console.warn("Failed to load dashboard data", e);
+    }
   };
 
   useEffect(() => {
@@ -75,6 +92,15 @@ export default function HomeScreen() {
           />
         }
       >
+        {netInfo.isConnected === false && (
+          <View className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-3 mb-4 flex-row items-center">
+            <MaterialIcons name="wifi-off" size={20} color="#dc2626" />
+            <BodyText className="ml-2 text-red-600 dark:text-red-400">
+              You are offline. Please check your connection.
+            </BodyText>
+          </View>
+        )}
+
         <Subheading size="md" className="mb-3 px-1">
           Quick Access
         </Subheading>
@@ -143,6 +169,36 @@ export default function HomeScreen() {
               </Caption>
             </Card>
           </TouchableOpacity>
+        </View>
+
+        <Subheading size="md" className="mt-2 mb-3 px-1">
+          Your Progress
+        </Subheading>
+        
+        <View className="flex-row justify-between mb-4">
+          <Card variant="bordered" className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4">
+            <MaterialIcons name="local-fire-department" size={24} color="#ea580c" />
+            <Heading size="lg" className="mt-2 text-neutral-900 dark:text-white">
+              {analytics?.study_streak ?? 0}
+            </Heading>
+            <Caption className="text-neutral-500 text-center">Day Streak</Caption>
+          </Card>
+
+          <Card variant="bordered" className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4">
+            <MaterialIcons name="quiz" size={24} color="#4f46e5" />
+            <Heading size="lg" className="mt-2 text-neutral-900 dark:text-white">
+              {analytics?.total_quizzes ?? 0}
+            </Heading>
+            <Caption className="text-neutral-500 text-center">Quizzes</Caption>
+          </Card>
+
+          <Card variant="bordered" className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4">
+            <MaterialIcons name="analytics" size={24} color="#10b981" />
+            <Heading size="lg" className="mt-2 text-neutral-900 dark:text-white">
+              {analytics?.average_score ? Math.round(analytics.average_score) + '%' : 'N/A'}
+            </Heading>
+            <Caption className="text-neutral-500 text-center">Avg. Score</Caption>
+          </Card>
         </View>
 
         <Card variant="bordered" className="mt-2 bg-white dark:bg-neutral-900">
