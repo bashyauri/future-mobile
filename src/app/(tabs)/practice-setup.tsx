@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
+import { useNetInfo } from "@react-native-community/netinfo";
 import {
   Alert,
   View,
@@ -223,6 +224,40 @@ export default function PracticeSetupScreen() {
       }
     };
   }, []);
+
+  // Auto-refresh when connection is restored
+  const netInfo = useNetInfo();
+  useEffect(() => {
+    if (netInfo.isConnected === true && !isLoading) {
+      const fetchConfig = async () => {
+        try {
+          setError(null);
+          const [subjectsRes, examTypesRes] = await Promise.all([
+            api.get("/config/subjects"),
+            api.get("/config/exam-types"),
+          ]);
+
+          const fetchedSubjects: Subject[] =
+            subjectsRes.data?.data ?? subjectsRes.data ?? [];
+          const fetchedExamTypes: ExamType[] =
+            examTypesRes.data?.data ?? examTypesRes.data ?? [];
+
+          setExamTypes(fetchedExamTypes);
+          setSubjects(fetchedSubjects);
+          setSelectedYear({ year: "all", label: "All Years" });
+
+          if (fetchedSubjects.length > 0) {
+            setSelectedSubject(fetchedSubjects[0]);
+          } else {
+            await loadYears(undefined, undefined);
+          }
+        } catch (e) {
+          setError("Could not load configuration. Please check your connection.");
+        }
+      };
+      fetchConfig();
+    }
+  }, [netInfo.isConnected]);
 
   const startPracticeSession = async () => {
     if (!selectedSubject) {

@@ -12,7 +12,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Button, Card } from "@/components";
-import { Heading, BodyText, Subheading } from "@/components/Typography";
+import { Heading, BodyText, Subheading, Caption } from "@/components/Typography";
 import api from "@/lib/api";
 
 type Subject = {
@@ -20,6 +20,12 @@ type Subject = {
   name: string;
   code: string;
   icon?: string;
+};
+
+type ExamType = {
+  id: number;
+  name: string;
+  description?: string;
 };
 
 const STREAMS = [
@@ -65,21 +71,34 @@ export default function OnboardingScreen() {
 
   const [loading, setLoading] = useState(false);
   const [fetchingSubjects, setFetchingSubjects] = useState(true);
+  const [fetchingExamTypes, setFetchingExamTypes] = useState(true);
   const [subjectError, setSubjectError] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [examTypes, setExamTypes] = useState<ExamType[]>([]);
 
-  const [mode, setMode] = useState<"stream" | "manual">("stream");
+  // Step-based state
+  const [currentStep, setCurrentStep] = useState(1);
   const [selectedStream, setSelectedStream] = useState<string | null>(null);
+  const [selectedExamTypes, setSelectedExamTypes] = useState<number[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
-  const step = useMemo(() => {
-    if (mode === "stream") {
-      return selectedStream ? 2 : 1;
-    }
-    if (mode === "manual") {
-      return selectedSubjects.length > 0 ? 3 : 2;
-    }
-    return 1;
-  }, [mode, selectedStream, selectedSubjects]);
+
+  // Load exam types on mount
+  useEffect(() => {
+    const loadExamTypes = async () => {
+      try {
+        const response = await api.get("/config/exam-types");
+        const examTypesData = Array.isArray(response.data)
+          ? response.data
+          : response.data?.data || [];
+        setExamTypes(examTypesData);
+      } catch (error) {
+        console.log("Error fetching exam types:", error);
+      } finally {
+        setFetchingExamTypes(false);
+      }
+    };
+    loadExamTypes();
+  }, []);
   useEffect(() => {
     const loadSubjects = async () => {
       try {
@@ -100,6 +119,12 @@ export default function OnboardingScreen() {
     loadSubjects();
   }, []);
 
+  const toggleExamType = (id: number) => {
+    setSelectedExamTypes(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
   const toggleSubject = (subjectId: number) => {
     setSelectedSubjects((prev) => {
       if (prev.includes(subjectId)) {
@@ -113,12 +138,30 @@ export default function OnboardingScreen() {
     });
   };
 
-  const handleComplete = async () => {
-    if (mode === "stream" && !selectedStream) {
-      Alert.alert("Selection Required", "Please select a stream to continue");
-      return;
+  const handleNext = () => {
+    if (currentStep === 1) {
+      if (!selectedStream) {
+        Alert.alert('Required', 'Please select a stream to continue');
+        return;
+      }
+      setCurrentStep(2);
+    } else if (currentStep === 2) {
+      if (selectedExamTypes.length === 0) {
+        Alert.alert('Required', 'Please select at least one exam type');
+        return;
+      }
+      setCurrentStep(3);
     }
-    if (mode === "manual" && selectedSubjects.length === 0) {
+  };
+
+  const handlePrevious = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (selectedSubjects.length === 0) {
       Alert.alert("Selection Required", "Please select at least one subject");
       return;
     }
@@ -130,7 +173,7 @@ export default function OnboardingScreen() {
       );
 
       const streamSubjectIds =
-        mode === "stream" && selectedStreamConfig
+        selectedStreamConfig
           ? subjects
               .filter((subject) =>
                 selectedStreamConfig.subjects.includes(subject.name),
@@ -138,9 +181,8 @@ export default function OnboardingScreen() {
               .map((subject) => subject.id)
           : [];
 
-      const finalSubjectIds =
-        mode === "stream" ? streamSubjectIds : selectedSubjects;
-      const finalStreamValue = mode === "stream" ? selectedStream : "manual";
+      const finalSubjectIds = selectedSubjects.length > 0 ? selectedSubjects : streamSubjectIds;
+      const finalStreamValue = selectedStream || "manual";
 
       if (finalSubjectIds.length === 0) {
         Alert.alert(
@@ -154,6 +196,7 @@ export default function OnboardingScreen() {
       // Save onboarding data via API
       await api.post("/onboarding", {
         stream: finalStreamValue,
+        exam_types: selectedExamTypes,
         subjects: finalSubjectIds,
       });
 
@@ -174,6 +217,8 @@ export default function OnboardingScreen() {
       setLoading(false);
     }
   };
+
+  const getProgress = () => Math.round((currentStep / 3) * 100);
 
   const getSubjectIcon = (name: string) => {
     const lowerName = name.toLowerCase();
@@ -199,49 +244,27 @@ export default function OnboardingScreen() {
           Personalize Your Setup
         </Heading>
         <BodyText variant="subtle" className="mt-2">
-          Choose how you want to prepare. You can pick a curated stream or
-          manually select your subjects.
+          {currentStep === 1 && "Select your area of study"}
+          {currentStep === 2 && "Choose the exam(s) you're preparing for"}
+          {currentStep === 3 && "Select the subjects you want to study"}
         </BodyText>
 
         {/* Progress Bar */}
         <View className="flex flex-row justify-between mb-3 mt-6">
-          <BodyText className="text-sm text-neutral-600 dark:text-neutral-400">{`Step ${step} of 3`}</BodyText>
-          <BodyText className="text-sm text-neutral-600 dark:text-neutral-400">{`${Math.round((step / 3) * 100)}% Complete`}</BodyText>
+          <BodyText className="text-sm text-neutral-600 dark:text-neutral-400">{`Step ${currentStep} of 3`}</BodyText>
+          <BodyText className="text-sm text-neutral-600 dark:text-neutral-400">{`${getProgress()}% Complete`}</BodyText>
         </View>
         <View className="w-full bg-neutral-200 dark:bg-neutral-700 rounded-full h-2 mb-4">
           <View
-            style={{ width: `${(step / 3) * 100}%` }}
+            style={{ width: `${getProgress()}%` }}
             className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full"
           />
-        </View>
-
-        {/* Toggle Mode */}
-        <View className="flex-row mt-6 bg-neutral-100 dark:bg-neutral-900 p-1 rounded-xl">
-          <TouchableOpacity
-            className={`flex-1 py-2 items-center justify-center rounded-lg ${mode === "stream" ? "bg-white dark:bg-neutral-800 shadow-sm border border-neutral-200 dark:border-neutral-700" : ""}`}
-            onPress={() => setMode("stream")}
-          >
-            <BodyText
-              className={`font-semibold ${mode === "stream" ? "text-primary-600 dark:text-primary-400" : "text-neutral-900 dark:text-neutral-400"}`}
-            >
-              Pick a Stream
-            </BodyText>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className={`flex-1 py-2 items-center justify-center rounded-lg ${mode === "manual" ? "bg-white dark:bg-neutral-800 shadow-sm border border-neutral-200 dark:border-neutral-700" : ""}`}
-            onPress={() => setMode("manual")}
-          >
-            <BodyText
-              className={`font-semibold ${mode === "manual" ? "text-primary-600 dark:text-primary-400" : "text-neutral-900 dark:text-neutral-400"}`}
-            >
-              Select Manual
-            </BodyText>
-          </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
-        {mode === "stream" ? (
+        {/* Step 1: Select Stream */}
+        {currentStep === 1 && (
           <View className="space-y-4 pt-2 pb-8">
             {STREAMS.map((stream) => (
               <Card
@@ -301,8 +324,87 @@ export default function OnboardingScreen() {
                 </View>
               </Card>
             ))}
+
+            {/* Custom Option */}
+            <Card
+              variant="outlined"
+              padding="md"
+              onPress={() => setSelectedStream('custom')}
+              className={`border-purple-200 dark:border-purple-800 ${selectedStream === 'custom' ? 'border-purple-500' : ''}`}
+            >
+              <View className="flex-row items-start space-x-4">
+                <MaterialIcons
+                  name="tune"
+                  size={28}
+                  color="#a855f7"
+                />
+                <View className="flex-1">
+                  <Subheading
+                    size="lg"
+                    className={
+                      selectedStream === 'custom'
+                        ? "text-purple-700 dark:text-purple-400"
+                        : "text-purple-700 dark:text-purple-300"
+                    }
+                  >
+                    Choose Subjects Manually
+                  </Subheading>
+                  <BodyText variant="subtle" size="sm" className="mt-1">
+                    Select your own combination of subjects
+                  </BodyText>
+                </View>
+                <View
+                  className={`w-6 h-6 rounded-full border-2 items-center justify-center ${selectedStream === 'custom' ? "bg-purple-600 border-purple-600" : "border-neutral-300 dark:border-neutral-600"}`}
+                >
+                  {selectedStream === 'custom' && (
+                    <MaterialIcons name="check" size={14} color="white" />
+                  )}
+                </View>
+              </View>
+            </Card>
           </View>
-        ) : (
+        )}
+
+        {/* Step 2: Select Exam Type */}
+        {currentStep === 2 && (
+          <View className="space-y-3 pt-2 pb-8">
+            {fetchingExamTypes ? (
+              <View className="py-10 items-center justify-center">
+                <ActivityIndicator size="large" color="#4f46e5" />
+                <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">
+                  Loading exam types...
+                </BodyText>
+              </View>
+            ) : (
+              examTypes.map((examType) => (
+                <Card
+                  key={examType.id}
+                  variant={selectedExamTypes.includes(examType.id) ? "bordered" : "outlined"}
+                  padding="md"
+                  onPress={() => toggleExamType(examType.id)}
+                  className={selectedExamTypes.includes(examType.id) ? "border-blue-500" : ""}
+                >
+                  <View className="flex-row items-center">
+                    <View className={`w-6 h-6 rounded-full border-2 items-center justify-center mr-4 ${selectedExamTypes.includes(examType.id) ? 'border-blue-500 bg-blue-500' : 'border-neutral-300 dark:border-neutral-600'}`}>
+                      {selectedExamTypes.includes(examType.id) && (
+                        <MaterialIcons name="check" size={14} color="white" />
+                      )}
+                    </View>
+                    <View className="flex-1">
+                      <BodyText className="font-semibold">{examType.name}</BodyText>
+                      {examType.description && (
+                        <BodyText variant="subtle" className="mt-1">{examType.description}</BodyText>
+                      )}
+                    </View>
+                  </View>
+                </Card>
+              ))
+            )}
+          </View>
+        )}
+
+        {/* Step 3: Select Subjects */}
+        {currentStep === 3 && (
           <View className="pt-2 pb-8">
             <View className="flex-row justify-between items-center mb-4">
               <Subheading>Available Subjects</Subheading>
@@ -383,22 +485,69 @@ export default function OnboardingScreen() {
       </ScrollView>
 
       <View className="px-6 py-4 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-900">
-        <Button
-          variant="primary"
-          size="lg"
-          fullWidth
-          onPress={handleComplete}
-          disabled={
-            loading ||
-            (mode === "manual" && selectedSubjects.length === 0) ||
-            (mode === "stream" && !selectedStream)
-          }
-          loading={loading}
-        >
-          {mode === "manual"
-            ? `Continue with ${selectedSubjects.length} Subject${selectedSubjects.length !== 1 ? "s" : ""}`
-            : "Continue Setup"}
-        </Button>
+        {currentStep === 1 ? (
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            onPress={handleNext}
+            disabled={!selectedStream}
+          >
+            Next: Choose Exam Type
+          </Button>
+        ) : currentStep === 2 ? (
+          <View className="flex gap-3">
+            <Button
+              variant="outline"
+              size="lg"
+              className="flex-1"
+              onPress={handlePrevious}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="primary"
+              size="lg"
+              className="flex-1"
+              onPress={handleNext}
+              disabled={selectedExamTypes.length === 0}
+            >
+              Next: Choose Subjects
+            </Button>
+          </View>
+        ) : (
+          <View className="flex gap-3">
+            {selectedStream !== 'custom' ? (
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1"
+                onPress={handlePrevious}
+              >
+                Previous
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="lg"
+                className="flex-1"
+                onPress={() => setCurrentStep(1)}
+              >
+                Back to Streams
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              size="lg"
+              className="flex-1"
+              onPress={handleComplete}
+              disabled={selectedSubjects.length === 0 || loading}
+              loading={loading}
+            >
+              Complete Setup
+            </Button>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );

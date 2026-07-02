@@ -10,6 +10,7 @@ import {
   Alert,
 } from "react-native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNetInfo } from "@react-native-community/netinfo";
 import { useTheme } from "@/context/ThemeContext";
 import { Card, Button } from "@/components";
 import {
@@ -125,6 +126,7 @@ export default function JambSetupScreen() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const router = useRouter();
+  const netInfo = useNetInfo();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [years, setYears] = useState<Year[]>([]);
@@ -213,6 +215,54 @@ export default function JambSetupScreen() {
       }
     };
   }, []);
+
+  // Auto-refresh when connection is restored
+
+  useEffect(() => {
+    if (netInfo.isConnected === true && !isLoading) {
+      const fetchJambConfiguration = async () => {
+        try {
+          setError(null);
+          const examTypesResponse = await api.get("/config/exam-types");
+          const examTypes: ExamType[] = examTypesResponse.data?.data ?? [];
+          const jambExamType =
+            examTypes.find((examType) => examType.slug === "jamb") ?? null;
+
+          const [subjectsResponse, yearsResponse] = await Promise.all([
+            api.get("/config/subjects", {
+              params: jambExamType
+                ? { exam_type_id: jambExamType.id }
+                : undefined,
+            }),
+            api.get("/config/years", {
+              params: jambExamType
+                ? { exam_type_id: jambExamType.id }
+                : undefined,
+            }),
+          ]);
+
+          const fetchedSubjects: Subject[] =
+            subjectsResponse.data?.data ?? subjectsResponse.data ?? [];
+          const fetchedYears = normalizeYears(
+            yearsResponse.data?.data ?? yearsResponse.data ?? [],
+          );
+
+          setSubjects(fetchedSubjects);
+          setYears([{ year: "all", label: "All Years" }, ...fetchedYears]);
+          setSelectedYear({ year: "all", label: "All Years" });
+
+          const compulsory = fetchedSubjects
+            .filter((subject) => isCompulsoryEnglishSubject(subject))
+            .map((subject) => subject.id);
+
+          setSelectedIds(compulsory);
+        } catch (e) {
+          setError("Could not load subjects. Please check your connection.");
+        }
+      };
+      fetchJambConfiguration();
+    }
+  }, [netInfo.isConnected]);
 
   const toggleSubject = (subject: Subject) => {
     if (isRequired(subject)) return;

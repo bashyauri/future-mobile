@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
 import { Alert, View, ScrollView, ActivityIndicator } from "react-native";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNetInfo } from "@react-native-community/netinfo";
 import { useTheme } from "@/context/ThemeContext";
 import { Card, Button } from "@/components";
 import {
@@ -39,6 +40,7 @@ export default function MockSetupScreen() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const router = useRouter();
+  const netInfo = useNetInfo();
 
   // Loading flags
   const [isLoading, setIsLoading] = useState(true);
@@ -127,6 +129,35 @@ export default function MockSetupScreen() {
     };
     fetchConfig();
   }, []);
+
+  // Auto-refresh when connection is restored
+  useEffect(() => {
+    if (netInfo.isConnected === true && !isLoading) {
+      const fetchConfig = async () => {
+        try {
+          setError(null);
+          const [examRes, formatsRes] = await Promise.all([
+            api.get("/config/exam-types"),
+            api.get("/config/mock-formats"),
+          ]);
+          const fetchedExamTypes: ExamType[] = examRes.data?.data ?? [];
+
+          setExamTypes(fetchedExamTypes);
+          setMockFormats(formatsRes.data?.data ?? {});
+
+          setSelectedExamType(null);
+
+          await fetchSubjectsForExamType(undefined);
+        } catch (e) {
+          console.warn(e);
+          setError(
+            "Failed to load configuration. Please check your network connection.",
+          );
+        }
+      };
+      fetchConfig();
+    }
+  }, [netInfo.isConnected]);
 
   useEffect(() => {
     const syncSelection = async () => {

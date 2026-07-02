@@ -58,6 +58,15 @@ export default function HomeScreen() {
     });
   }, []);
 
+  // Auto-refresh when connection is restored
+  useEffect(() => {
+    if (netInfo.isConnected === true) {
+      loadDashboard().catch((error) => {
+        console.warn("Failed to refresh after reconnection", error);
+      });
+    }
+  }, [netInfo.isConnected]);
+
   const onRefresh = async (): Promise<void> => {
     setIsRefreshing(true);
 

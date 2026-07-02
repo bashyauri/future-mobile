@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
+import { useNetInfo } from "@react-native-community/netinfo";
 
 export default function TabLayout() {
   const { theme } = useTheme();
