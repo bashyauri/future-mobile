@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
 import { useNetInfo } from "@react-native-community/netinfo";
+import { storage } from "@/lib/storage";
 import {
   Alert,
   View,
@@ -259,46 +260,104 @@ export default function PracticeSetupScreen() {
     }
   }, [netInfo.isConnected]);
 
-  const startPracticeSession = async () => {
-    if (!selectedSubject) {
-      return;
-    }
+const startPracticeSession = async () => {
+  const questionCount =
+  questionCountInput.trim() !== ""
+    ? Number(questionCountInput)
+    : undefined;
 
-    try {
-      setIsPreparing(true);
-      setPrepareStatus("Starting practice session...");
+const timeLimit =
+  timeLimitInput.trim() !== ""
+    ? Number(timeLimitInput)
+    : undefined;
 
-      const queryParams = new URLSearchParams();
-      queryParams.append("subject_id", String(selectedSubject.id));
-      if (selectedExamType) {
-        queryParams.append("exam_type_id", String(selectedExamType.id));
-      }
-      if (selectedYear && selectedYear.year !== "all") {
-        queryParams.append("year", String(selectedYear.year));
-      }
-      if (questionCount) {
-        queryParams.append("limit", String(questionCount));
-      }
-      if (timeLimit) {
-        queryParams.append("time", String(timeLimit));
-      }
-      if (shuffleQuestions) {
-        queryParams.append("shuffle", "true");
-      }
+if (
+  questionCount !== undefined &&
+  (!Number.isFinite(questionCount) ||
+    questionCount <= 0)
+) {
+  Alert.alert(
+    "Invalid Question Count",
+    "Enter a value greater than 0.",
+  );
+  return;
+}
 
-      router.push(`/practice/new?${queryParams.toString()}`);
-    } catch (downloadError) {
-      const message =
-        downloadError instanceof Error
-          ? downloadError.message
-          : "Could not prepare subject download. Please try again.";
+if (
+  timeLimit !== undefined &&
+  (!Number.isFinite(timeLimit) ||
+    timeLimit <= 0)
+) {
+  Alert.alert(
+    "Invalid Time Limit",
+    "Enter a value greater than 0.",
+  );
+  return;
+}
 
-      Alert.alert("Preparation failed", message);
-    } finally {
-      setIsPreparing(false);
-      setPrepareStatus(null);
-    }
-  };
+  if (!selectedSubject) {
+    Alert.alert(
+      "Subject Required",
+      "Please select a subject."
+    );
+    return;
+  }
+
+  try {
+    setIsPreparing(true);
+    setPrepareStatus(
+      "Creating practice session..."
+    );
+
+    const payload = {
+  subject: selectedSubject.id,
+
+  exam_type: selectedExamType?.id,
+
+  year:
+    selectedYear?.year !== "all"
+      ? Number(selectedYear?.year)
+      : undefined,
+
+  limit: questionCount,
+
+  time: timeLimit,
+
+  shuffle: shuffleQuestions,
+};
+    const response = await api.post(
+      "/practice/start",
+      payload,
+    );
+
+    const attemptData =
+  response.data?.data ?? response.data;
+  if (!attemptData?.attempt_id) {
+  throw new Error(
+    "Practice session created but no attempt ID was returned.",
+  );
+}
+
+    await storage.setItem(
+      `practice_attempt_${attemptData.attempt_id}`,
+      JSON.stringify(attemptData),
+    );
+
+   router.push(
+  `/practice/${attemptData.attempt_id}`,
+);
+  } catch (error: any) {
+    Alert.alert(
+      "Failed to Start Practice",
+      error?.response?.data?.message ??
+        error?.message ??
+        "Unknown error"
+    );
+  } finally {
+    setIsPreparing(false);
+    setPrepareStatus(null);
+  }
+};
 
   if (isLoading) {
     return (

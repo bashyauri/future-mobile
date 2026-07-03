@@ -42,7 +42,7 @@ export default function HomeScreen() {
     try {
       const [subjectsRes, analyticsRes] = await Promise.all([
         api.get("/subjects"),
-        api.get("/analytics/overview")
+        api.get("/analytics/overview"),
       ]);
 
       setSubjects(subjectsRes.data?.data ?? subjectsRes.data ?? []);
@@ -183,30 +183,58 @@ export default function HomeScreen() {
         <Subheading size="md" className="mt-2 mb-3 px-1">
           Your Progress
         </Subheading>
-        
+
         <View className="flex-row justify-between mb-4">
-          <Card variant="bordered" className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4">
-            <MaterialIcons name="local-fire-department" size={24} color="#ea580c" />
-            <Heading size="lg" className="mt-2 text-neutral-900 dark:text-white">
+          <Card
+            variant="bordered"
+            className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
+          >
+            <MaterialIcons
+              name="local-fire-department"
+              size={24}
+              color="#ea580c"
+            />
+            <Heading
+              size="lg"
+              className="mt-2 text-neutral-900 dark:text-white"
+            >
               {analytics?.study_streak ?? 0}
             </Heading>
-            <Caption className="text-neutral-500 text-center">Day Streak</Caption>
+            <Caption className="text-neutral-500 text-center">
+              Day Streak
+            </Caption>
           </Card>
 
-          <Card variant="bordered" className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4">
+          <Card
+            variant="bordered"
+            className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
+          >
             <MaterialIcons name="quiz" size={24} color="#4f46e5" />
-            <Heading size="lg" className="mt-2 text-neutral-900 dark:text-white">
+            <Heading
+              size="lg"
+              className="mt-2 text-neutral-900 dark:text-white"
+            >
               {analytics?.total_quizzes ?? 0}
             </Heading>
             <Caption className="text-neutral-500 text-center">Quizzes</Caption>
           </Card>
 
-          <Card variant="bordered" className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4">
+          <Card
+            variant="bordered"
+            className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
+          >
             <MaterialIcons name="analytics" size={24} color="#10b981" />
-            <Heading size="lg" className="mt-2 text-neutral-900 dark:text-white">
-              {analytics?.average_score ? Math.round(analytics.average_score) + '%' : 'N/A'}
+            <Heading
+              size="lg"
+              className="mt-2 text-neutral-900 dark:text-white"
+            >
+              {analytics?.average_score
+                ? Math.round(analytics.average_score) + "%"
+                : "N/A"}
             </Heading>
-            <Caption className="text-neutral-500 text-center">Avg. Score</Caption>
+            <Caption className="text-neutral-500 text-center">
+              Avg. Score
+            </Caption>
           </Card>
         </View>
 
