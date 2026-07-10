@@ -301,7 +301,7 @@ export default function JambSetupScreen() {
           ? parsedTimeLimit
           : undefined;
 
-      await api.post("/jamb/sessions", {
+      const payload = {
         subject_ids: selectedSubjects.map((subject) => subject.id),
         year: selectedNumericYear ?? null,
         ...(questionsPerSubject
@@ -309,34 +309,27 @@ export default function JambSetupScreen() {
           : {}),
         ...(timeLimit ? { time_limit: timeLimit } : {}),
         shuffle: shuffleQuestions,
-      });
+      };
+
+      const response = await api.post("/jamb/start", payload);
+      const attemptData = response.data?.data ?? response.data;
 
       setPrepareStatus("Starting JAMB exam...");
 
-      // Navigate to JAMB quiz screen with all settings as URL params,
-      // mirroring the web's redirect to practice.jamb.quiz
-      const queryParams = new URLSearchParams();
-      queryParams.append(
-        "subjects",
-        selectedSubjects.map((s) => s.id).join(","),
-      );
-      if (selectedNumericYear) {
-        queryParams.append("year", String(selectedNumericYear));
+      if (attemptData?.attempt_id) {
+        await storage.setItem(
+          `jamb_attempt_${attemptData.attempt_id}`,
+          JSON.stringify(attemptData),
+        );
+        router.push(`/jamb/${attemptData.attempt_id}`);
+      } else {
+        throw new Error("Invalid attempt data received from server.");
       }
-      if (questionsPerSubject) {
-        queryParams.append("questionsPerSubject", String(questionsPerSubject));
-      }
-      if (timeLimit) {
-        queryParams.append("timeLimit", String(timeLimit));
-      }
-      queryParams.append("shuffle", shuffleQuestions ? "1" : "0");
-
-      router.push(`/jamb/new?${queryParams.toString()}`);
-    } catch (downloadError) {
+    } catch (startError) {
       const message =
-        downloadError instanceof Error
-          ? downloadError.message
-          : "Could not prepare subject download. Please try again.";
+        startError instanceof Error
+          ? startError.message
+          : "Could not prepare JAMB exam. Please try again.";
 
       Alert.alert("Preparation failed", message);
     } finally {

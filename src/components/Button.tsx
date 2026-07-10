@@ -17,6 +17,7 @@ interface ButtonProps {
   fullWidth?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  className?: string;
 }
 
 export function Button({
@@ -31,6 +32,7 @@ export function Button({
   fullWidth = false,
   leftIcon,
   rightIcon,
+  className,
 }: ButtonProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -94,7 +96,7 @@ export function Button({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      className={`${getVariantClasses()} ${getSizeClasses()} ${fullWidth ? 'w-full' : ''} ${disabled ? 'opacity-50' : ''}`}
+      className={`${getVariantClasses()} ${getSizeClasses()} ${fullWidth ? 'w-full' : ''} ${disabled ? 'opacity-50' : ''} ${className || ''}`}
       style={style}
     >
       {loading ? (
