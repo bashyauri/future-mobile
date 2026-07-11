@@ -2,7 +2,7 @@ import { storage } from "@/lib/storage";
 import axios from "axios";
 
 const API_BASE_URL = __DEV__
-  ? "http://192.168.191.173:8000/api/v1"
+  ? "http://192.168.1.77:8000/api/v1"
   : "https://futureacademy-rm.com/api/v1";
 
 const api = axios.create({

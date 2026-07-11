@@ -8,6 +8,8 @@ import {
   Modal,
   ActivityIndicator,
   useWindowDimensions,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
@@ -38,6 +40,91 @@ type Question = {
 type SubjectData = {
   id: number;
   name: string;
+};
+
+const getShortSubjectName = (name?: string | null): string => {
+  if (!name || typeof name !== "string") {
+    return "";
+  }
+  const lower = name.toLowerCase().trim();
+  if (lower.includes("english")) { return "Eng"; }
+  if (lower.includes("mathematics") || lower.includes("maths")) { return "Math"; }
+  if (lower.includes("physics")) { return "Phys"; }
+  if (lower.includes("chemistry")) { return "Chem"; }
+  if (lower.includes("biology")) { return "Bio"; }
+  if (lower.includes("government")) { return "Govt"; }
+  if (lower.includes("economics")) { return "Econ"; }
+  if (lower.includes("literature")) { return "Lit"; }
+  if (lower.includes("christian") || lower.includes("crs")) { return "CRS"; }
+  if (lower.includes("islamic") || lower.includes("irs")) { return "IRS"; }
+  if (lower.includes("agricultural") || lower.includes("agric")) { return "Agric"; }
+  if (lower.includes("geography")) { return "Geog"; }
+  if (lower.includes("commerce")) { return "Comm"; }
+  if (lower.includes("accounting") || lower.includes("account")) { return "Acc"; }
+  if (lower.includes("history")) { return "Hist"; }
+  if (lower.includes("yoruba")) { return "Yor"; }
+  if (lower.includes("hausa")) { return "Hau"; }
+  if (lower.includes("igbo")) { return "Igb"; }
+  if (lower.includes("french")) { return "Fre"; }
+
+  return name.length > 8 ? name.substring(0, 7) + "." : name;
+};
+
+// Skeleton Loader Component
+const SkeletonLoader = () => {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const { width } = useWindowDimensions();
+
+  const SkeletonBar = ({ width: w, height: h, className = "" }: any) => (
+    <View
+      className={`rounded-lg ${isDark ? 'bg-neutral-800' : 'bg-neutral-200'} ${className}`}
+      style={{ width: w, height: h }}
+    />
+  );
+
+  return (
+    <View className="flex-1 bg-neutral-50 dark:bg-neutral-950">
+      {/* Header Skeleton */}
+      <View className="px-4 pt-12 pb-4 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
+        <View className="flex-row justify-between items-center">
+          <View className="flex-1">
+            <SkeletonBar width={width * 0.4} height={24} className="mb-2" />
+            <SkeletonBar width={width * 0.3} height={16} />
+          </View>
+          <SkeletonBar width={60} height={36} className="rounded-full" />
+        </View>
+        <SkeletonBar width={width * 0.8} height={8} className="mt-3" />
+      </View>
+
+      {/* Subject Tabs Skeleton */}
+      <View className="px-3 py-2.5 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex-row gap-2">
+        {[1, 2, 3, 4].map((i) => (
+          <SkeletonBar key={i} height={40} className="flex-1 rounded-xl" />
+        ))}
+      </View>
+
+      {/* Question Card Skeleton */}
+      <View className="flex-1 px-4 pt-4">
+        <View className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-5 mb-4">
+          <SkeletonBar width={120} height={20} className="mb-3" />
+          <SkeletonBar width={width * 0.9} height={16} className="mb-2" />
+          <SkeletonBar width={width * 0.7} height={16} className="mb-2" />
+          <SkeletonBar width={width * 0.5} height={16} />
+        </View>
+
+        {/* Options Skeleton */}
+        {[1, 2, 3, 4].map((i) => (
+          <View key={i} className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4 mb-3">
+            <View className="flex-row items-center gap-3">
+              <SkeletonBar width={32} height={32} className="rounded-full" />
+              <SkeletonBar width={width * 0.6} height={16} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 };
 
 export default function JambQuizScreen() {
@@ -72,6 +159,10 @@ export default function JambQuizScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Animation values
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const timerPulseAnim = useRef(new Animated.Value(1)).current;
 
   // Responsive heights based on screen size
   const webViewHeight = Math.max(120, Math.min(height * 0.15, 200));
@@ -173,6 +264,28 @@ export default function JambQuizScreen() {
     };
   }, [showResults, attemptId, userAnswers, currentSubjectIndex, currentQuestionIndex]);
 
+  // Timer pulse animation when less than 5 minutes
+  useEffect(() => {
+    if (timeRemaining > 0 && timeRemaining < 300) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(timerPulseAnim, {
+            toValue: 1.3,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(timerPulseAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      timerPulseAnim.setValue(1);
+    }
+  }, [timeRemaining]);
+
   const formatTime = (seconds: number): string => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -203,6 +316,20 @@ export default function JambQuizScreen() {
         [currentQuestionIndex]: optionId,
       },
     }));
+
+    // Animate selection
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1.02,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   const autosave = async () => {
@@ -374,15 +501,12 @@ export default function JambQuizScreen() {
     );
   };
 
+  const getOptionLabel = (index: number): string => {
+    return String.fromCharCode(65 + index); // A, B, C, D, ...
+  };
+
   if (isLoading) {
-    return (
-      <View className="flex-1 items-center justify-center bg-neutral-50 dark:bg-neutral-950">
-        <ActivityIndicator size="large" color="#4f46e5" />
-        <BodyText className="mt-4 text-neutral-500 dark:text-neutral-400">
-          Loading JAMB session...
-        </BodyText>
-      </View>
-    );
+    return <SkeletonLoader />;
   }
 
   if (error) {
@@ -398,12 +522,48 @@ export default function JambQuizScreen() {
   }
 
   if (showResults) {
+    const totalScore = Object.values(scores).reduce((sum, s) => sum + s.score, 0);
+    const totalQuestions = Object.values(scores).reduce((sum, s) => sum + s.total, 0);
+    const overallPercentage = totalQuestions > 0 ? Math.round((totalScore / totalQuestions) * 100) : 0;
+
+    const getScoreColor = (percentage: number) => {
+      if (percentage >= 70) return "#22c55e";
+      if (percentage >= 40) return "#f59e0b";
+      return "#ef4444";
+    };
+
+    const getScoreEmoji = (percentage: number) => {
+      if (percentage >= 80) return "🏆";
+      if (percentage >= 60) return "✅";
+      return "⚠️";
+    };
+
     return (
       <ScrollView className="flex-1 bg-neutral-50 dark:bg-neutral-950">
-        <View className="pt-16 pb-8 px-6">
+        <View className="pt-12 pb-8 px-6">
           <Heading size="xl" className="text-center mb-2">
-            JAMB Test Completed
+            Test Completed! 🎉
           </Heading>
+
+          {/* Overall Score Ring */}
+          <View className="items-center justify-center my-8">
+            <View
+              className="relative items-center justify-center rounded-full border-8"
+              style={{
+                width: 160,
+                height: 160,
+                borderColor: getScoreColor(overallPercentage),
+              }}
+            >
+              <BodyText className="text-5xl font-bold text-center">
+                {overallPercentage}%
+              </BodyText>
+              <BodyText className="text-neutral-500 dark:text-neutral-400">
+                {totalScore}/{totalQuestions}
+              </BodyText>
+            </View>
+          </View>
+
           <BodyText className="text-center text-neutral-500 dark:text-neutral-400 mb-8">
             Here is your performance breakdown by subject.
           </BodyText>
@@ -421,18 +581,33 @@ export default function JambQuizScreen() {
                 key={subject.id}
                 className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-5 mb-4"
               >
-                <Heading size="md" className="mb-3">
-                  {subject.name}
-                </Heading>
-                <View className="flex-row justify-between mb-2">
-                  <BodyText className="text-neutral-500 dark:text-neutral-400">Score</BodyText>
+                <View className="flex-row items-center justify-between mb-3">
+                  <Heading size="md">
+                    {getScoreEmoji(percentage)} {subject.name}
+                  </Heading>
                   <BodyText className="font-semibold">
                     {subjectScore.score}/{subjectScore.total}
                   </BodyText>
                 </View>
-                <View className="flex-row justify-between">
-                  <BodyText className="text-neutral-500 dark:text-neutral-400">Percentage</BodyText>
-                  <BodyText className="font-semibold">{percentage}%</BodyText>
+
+                {/* Mini progress bar */}
+                <View className="w-full h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                  <View
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${percentage}%`,
+                      backgroundColor: getScoreColor(percentage),
+                    }}
+                  />
+                </View>
+
+                <View className="flex-row justify-between mt-2">
+                  <Caption className="text-neutral-500 dark:text-neutral-400">
+                    {percentage}% correct
+                  </Caption>
+                  <Caption className="text-neutral-500 dark:text-neutral-400">
+                    {percentage >= 70 ? 'Excellent!' : percentage >= 40 ? 'Good effort!' : 'Keep practicing!'}
+                  </Caption>
                 </View>
               </View>
             );
@@ -450,13 +625,13 @@ export default function JambQuizScreen() {
               {subjectsData.map((subject) => {
                 const questions = questionsBySubject[subject.id] ?? [];
                 const subjectAnswers = userAnswers[subject.id] ?? {};
-                
+
                 return (
                   <View key={subject.id} className="mb-6">
                     <Heading size="md" className="mb-3 text-primary-700 dark:text-primary-300">
                       {subject.name}
                     </Heading>
-                    
+
                     {questions.map((q, idx) => {
                       const uAnswer = subjectAnswers[idx];
                       const isCorrectAns = q.options.find(o => o.id === uAnswer)?.is_correct;
@@ -466,29 +641,29 @@ export default function JambQuizScreen() {
                             <BodyText className="font-bold text-neutral-900 dark:text-neutral-100">Question {idx + 1}</BodyText>
                             <View className={`px-2 py-1 rounded-full ${isCorrectAns ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
                               <Caption className={isCorrectAns ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}>
-                                {isCorrectAns ? 'Correct' : 'Incorrect'}
+                                {isCorrectAns ? '✅ Correct' : '❌ Incorrect'}
                               </Caption>
                             </View>
                           </View>
                           <AutoHeightWebView html={q.question_text_html || q.question_text} scrollEnabled={false} />
-                          
+
                           <View className="mt-3">
-                            {q.options.map(opt => {
+                            {q.options.map((opt) => {
                               const isSelectedOpt = opt.id === uAnswer;
                               const isCorrectOpt = opt.is_correct;
                               let bgColor = "bg-transparent";
                               if (isSelectedOpt && isCorrectOpt) bgColor = "bg-green-50 dark:bg-green-900/20";
                               else if (isSelectedOpt && !isCorrectOpt) bgColor = "bg-red-50 dark:bg-red-900/20";
                               else if (isCorrectOpt) bgColor = "bg-green-50/50 dark:bg-green-900/10";
-                              
+
                               return (
                                 <View key={opt.id} className={`p-2 rounded-lg my-1 flex-row items-center ${bgColor}`}>
                                   <View className="flex-1">
-                                     {(!opt.option_text_html || !opt.option_text_html.includes('<')) ? (
-                                        <BodyText className="text-neutral-700 dark:text-neutral-300">{opt.option_text}</BodyText>
-                                     ) : (
-                                        <AutoHeightWebView html={opt.option_text_html || opt.option_text} scrollEnabled={false} />
-                                     )}
+                                    {(!opt.option_text_html || !opt.option_text_html.includes('<')) ? (
+                                      <BodyText className="text-neutral-700 dark:text-neutral-300">{opt.option_text}</BodyText>
+                                    ) : (
+                                      <AutoHeightWebView html={opt.option_text_html || opt.option_text} scrollEnabled={false} />
+                                    )}
                                   </View>
                                   {isSelectedOpt && isCorrectOpt && <MaterialIcons name="check-circle" size={16} color="#22c55e" />}
                                   {isSelectedOpt && !isCorrectOpt && <MaterialIcons name="cancel" size={16} color="#ef4444" />}
@@ -497,12 +672,12 @@ export default function JambQuizScreen() {
                               );
                             })}
                           </View>
-                          
+
                           {q.explanation_html && (
-                             <View className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                                <Caption className="font-bold text-blue-900 dark:text-blue-300 mb-1">Explanation</Caption>
-                                <AutoHeightWebView html={q.explanation_html} scrollEnabled={false} />
-                             </View>
+                            <View className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                              <Caption className="font-bold text-blue-900 dark:text-blue-300 mb-1">💡 Explanation</Caption>
+                              <AutoHeightWebView html={q.explanation_html} scrollEnabled={false} />
+                            </View>
                           )}
                         </View>
                       );
@@ -526,97 +701,144 @@ export default function JambQuizScreen() {
 
   const currentQuestion = getCurrentQuestion();
   const currentSubject = subjectsData[currentSubjectIndex];
+  const totalAnswered = getTotalAnswered();
+  const totalQuestions = getTotalQuestions();
+  const progressPercentage = totalQuestions > 0 ? (totalAnswered / totalQuestions) * 100 : 0;
 
   return (
     <View className="flex-1 bg-neutral-50 dark:bg-neutral-950">
-      {/* Header */}
-      <View className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800" style={{ paddingTop: insets.top + 56, paddingBottom: 16, paddingHorizontal: 16 }}>
-        <View className="flex-row items-center justify-between mb-3">
+      {/* Header - No LinearGradient needed */}
+      <View
+        className={`border-b border-neutral-200 dark:border-neutral-800 ${isDark ? 'bg-neutral-900' : 'bg-white'
+          }`}
+        style={{ paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 16 }}
+      >
+        <View className="flex-row items-center justify-between mb-2">
           <View className="flex-1">
-            <Heading size="lg" className="mb-1">
-              JAMB Practice Test
+            <Heading size="lg" className="text-primary-700 dark:text-primary-300">
+              📝 JAMB Practice
             </Heading>
             <Caption className="text-neutral-500 dark:text-neutral-400">
               {currentSubject?.name ?? ""}
             </Caption>
           </View>
-          <TouchableOpacity
-            onPress={() => setShowQuestionNavigator(true)}
-            className="ml-3 px-3 py-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg"
-            style={{ minHeight: 44 }}
-          >
-            <BodyText className="text-primary-600 dark:text-primary-400 font-semibold">
-              {getTotalAnswered()}/{getTotalQuestions()}
-            </BodyText>
-          </TouchableOpacity>
+
+          {/* Timer */}
+          {timeLimit && timeLimit > 0 && (
+            <Animated.View
+              className="flex-row items-center bg-primary-50 dark:bg-primary-900/20 px-3 py-1.5 rounded-full"
+              style={{
+                transform: [{ scale: timerPulseAnim }],
+              }}
+            >
+              <MaterialIcons
+                name="alarm"
+                size={18}
+                color={timeRemaining < 300 ? "#ef4444" : "#4f46e5"}
+                style={{ marginRight: 4 }}
+              />
+              <BodyText
+                className={`font-mono text-base font-bold ${timeRemaining < 300
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-primary-600 dark:text-primary-400"
+                  }`}
+              >
+                {formatTime(timeRemaining)}
+              </BodyText>
+            </Animated.View>
+          )}
         </View>
 
-        {timeLimit && timeLimit > 0 && (
-          <View className="flex-row items-center justify-between">
-            <Caption className="text-neutral-500 dark:text-neutral-400">Time Remaining</Caption>
-            <BodyText
-              className={`font-mono text-xl font-bold ${
-                timeRemaining < 600 ? "text-red-600 dark:text-red-400" : "text-primary-600 dark:text-primary-400"
-              }`}
-            >
-              {formatTime(timeRemaining)}
-            </BodyText>
+        {/* Progress Bar */}
+        <View className="mt-1">
+          <View className="flex-row justify-between mb-1">
+            <Caption className="text-neutral-500 dark:text-neutral-400">
+              Progress
+            </Caption>
+            <Caption className="text-neutral-500 dark:text-neutral-400">
+              {totalAnswered}/{totalQuestions}
+            </Caption>
           </View>
-        )}
+          <View className="w-full h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+            <View
+              className="h-full bg-primary-500 rounded-full"
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </View>
+        </View>
       </View>
 
-      {/* Subject Tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800"
-        contentContainerStyle={{ paddingHorizontal: 12 }}
+      {/* Subject Tabs - Segmented Responsive Row */}
+      <View
+        className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 py-2.5 flex-row px-3 gap-2"
       >
         {subjectsData.map((subject, index) => {
           const isActive = currentSubjectIndex === index;
           const answered = getAnsweredCount(subject.id);
           const total = questionsBySubject[subject.id]?.length ?? 0;
+          const isComplete = answered === total;
 
           return (
             <TouchableOpacity
               key={subject.id}
               onPress={() => switchSubject(index)}
-              className={`mr-2 px-4 py-3 rounded-xl border-2 ${
-                isActive
-                  ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20"
-                  : "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900"
-              }`}
-              style={{ minHeight: 44 }}
+              className={`flex-1 py-1.5 rounded-xl items-center justify-center border relative ${isActive
+                ? "bg-primary-600 border-primary-600 shadow-sm"
+                : "bg-neutral-50 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800"
+                }`}
             >
               <BodyText
-                className={`font-semibold text-sm ${
-                  isActive ? "text-primary-700 dark:text-primary-300" : "text-neutral-700 dark:text-neutral-300"
-                }`}
+                className={`font-semibold text-xs text-center ${isActive ? "text-white" : "text-neutral-700 dark:text-neutral-300"
+                  }`}
               >
-                {subject.name}
+                {getShortSubjectName(subject.name)}
               </BodyText>
+              
               <Caption
-                className={`text-xs ${
-                  isActive ? "text-primary-600 dark:text-primary-400" : "text-neutral-500 dark:text-neutral-400"
-                }`}
+                className={`text-[10px] mt-0.5 text-center ${isActive ? "text-white/80 font-medium" : "text-neutral-500 dark:text-neutral-400"
+                  }`}
               >
                 {answered}/{total}
               </Caption>
+
+              {isComplete && (
+                <View className="absolute top-1 right-1 w-1.5 h-1.5 bg-green-500 rounded-full" />
+              )}
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
 
-      {/* Main Content */}
+      {/* Main Content Body */}
       <ScrollView
         ref={scrollViewRef}
         className="flex-1 px-4 pt-4"
-        contentContainerStyle={{ paddingBottom: 280 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 180 }}
+        showsVerticalScrollIndicator={false}
       >
         {currentQuestion && (
           <>
             {/* Question Card */}
             <View className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-5 mb-4">
+              {/* Question Header */}
+              <View className="flex-row items-center justify-between mb-3">
+                <View className="flex-row items-center gap-2">
+                  <View className="bg-primary-100 dark:bg-primary-900/30 px-3 py-1 rounded-full">
+                    <Caption className="text-primary-700 dark:text-primary-300 font-semibold">
+                      Q{currentQuestionIndex + 1}
+                    </Caption>
+                  </View>
+                  <Caption className="text-neutral-500 dark:text-neutral-400">
+                    of {getCurrentQuestions().length}
+                  </Caption>
+                </View>
+                <View className="bg-neutral-100 dark:bg-neutral-800 px-3 py-1 rounded-full">
+                  <Caption className="text-neutral-600 dark:text-neutral-400">
+                    {currentSubject?.name}
+                  </Caption>
+                </View>
+              </View>
+
               <AutoHeightWebView
                 html={currentQuestion.question_text_html || currentQuestion.question_text}
                 scrollEnabled={false}
@@ -624,131 +846,186 @@ export default function JambQuizScreen() {
               {currentQuestion.question_image && (
                 <WebView
                   source={{ uri: currentQuestion.question_image }}
-                  style={{ height: 200, marginTop: 12, borderRadius: 8 }}
+                  style={{ height: Math.min(200, height * 0.25), marginTop: 12, borderRadius: 8 }}
                 />
               )}
             </View>
 
             {/* Options */}
             <View className="space-y-3 mb-4">
-              {currentQuestion.options.map((option) => {
+              {currentQuestion.options.map((option, optIndex) => {
                 const subjectId = getCurrentSubjectId();
                 const isSelected = userAnswers[subjectId]?.[currentQuestionIndex] === option.id;
-                const isAnswered = userAnswers[subjectId]?.[currentQuestionIndex] !== undefined && userAnswers[subjectId]?.[currentQuestionIndex] !== null;
+                const isAnswered = userAnswers[subjectId]?.[currentQuestionIndex] !== undefined &&
+                  userAnswers[subjectId]?.[currentQuestionIndex] !== null;
                 const isCorrect = option.is_correct;
+                const isCorrectSelected = isSelected && isCorrect;
+                const isWrongSelected = isSelected && !isCorrect;
 
                 let borderColor = "border-neutral-200 dark:border-neutral-800";
                 let bgColor = "bg-white dark:bg-neutral-900";
+                let borderLeftColor = "border-l-transparent";
+                let opacity = 1;
 
                 if (isAnswered) {
-                  if (isSelected && isCorrect) {
-                    borderColor = "border-green-500";
-                    bgColor = "bg-green-50 dark:bg-green-900/20";
+                  if (isCorrect) {
+                    borderColor = "border-green-500/50";
+                    bgColor = "bg-green-50 dark:bg-green-900/10";
+                    borderLeftColor = "border-l-green-500";
                   } else if (isSelected && !isCorrect) {
-                    borderColor = "border-red-500";
-                    bgColor = "bg-red-50 dark:bg-red-900/20";
-                  } else if (!isSelected && isCorrect) {
-                    borderColor = "border-green-400";
-                    bgColor = "bg-green-50/50 dark:bg-green-900/10";
+                    borderColor = "border-red-500/50";
+                    bgColor = "bg-red-50 dark:bg-red-900/10";
+                    borderLeftColor = "border-l-red-500";
+                  } else if (!isSelected && !isCorrect) {
+                    opacity = 0.5;
                   }
                 }
 
                 return (
-                  <TouchableOpacity
+                  <Animated.View
                     key={option.id}
-                    onPress={() => !isAnswered && selectAnswer(option.id)}
-                    disabled={isAnswered}
-                    className={`p-4 rounded-2xl border-2 ${borderColor} ${bgColor}`}
-                    style={{ opacity: isAnswered && !isSelected ? 0.6 : 1 }}
+                    style={{
+                      transform: [{ scale: isSelected ? scaleAnim : 1 }],
+                      opacity: isAnswered && !isSelected && !isCorrect ? 0.6 : 1,
+                    }}
                   >
-                    <View className="flex-row items-start gap-3">
-                      <View
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-0.5 ${
-                          isSelected && isCorrect
-                            ? "border-green-500 bg-green-500"
-                            : isSelected && !isCorrect
-                            ? "border-red-500 bg-red-500"
-                            : !isSelected && isCorrect
-                            ? "border-green-400 bg-green-400"
-                            : "border-neutral-300 dark:border-neutral-700"
-                        }`}
-                      >
-                        {isSelected && <View className="w-2.5 h-2.5 bg-white rounded-full" />}
-                      </View>
-                      <View className="flex-1">
-                        {(!option.option_text_html || !option.option_text_html.includes('<')) ? (
-                          <BodyText className={isSelected ? 'text-white' : 'text-neutral-900 dark:text-neutral-100'}>{option.option_text}</BodyText>
-                        ) : (
-                          <AutoHeightWebView html={option.option_text_html || option.option_text} scrollEnabled={false} />
+                    <TouchableOpacity
+                      onPress={() => !isAnswered && selectAnswer(option.id)}
+                      disabled={isAnswered}
+                      className={`p-4 rounded-2xl border-2 ${borderColor} ${bgColor} border-l-4 ${borderLeftColor}`}
+                      activeOpacity={0.7}
+                    >
+                      <View className="flex-row items-center gap-3">
+                        {/* Option Letter Badge */}
+                        <View
+                          className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isSelected
+                            ? isCorrect
+                              ? "border-green-500 bg-green-500"
+                              : "border-red-500 bg-red-500"
+                            : isCorrect && isAnswered
+                              ? "border-green-500 bg-green-100 dark:bg-green-900/30"
+                              : "border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800"
+                            }`}
+                        >
+                          <BodyText
+                            className={`font-bold text-sm ${isSelected || (isCorrect && isAnswered)
+                              ? "text-white"
+                              : "text-neutral-600 dark:text-neutral-400"
+                              }`}
+                          >
+                            {getOptionLabel(optIndex)}
+                          </BodyText>
+                        </View>
+
+                        <View className="flex-1">
+                          {(!option.option_text_html || !option.option_text_html.includes('<')) ? (
+                            <BodyText className="text-neutral-900 dark:text-neutral-100">
+                              {option.option_text}
+                            </BodyText>
+                          ) : (
+                            <AutoHeightWebView html={option.option_text_html || option.option_text} scrollEnabled={false} />
+                          )}
+                        </View>
+
+                        {/* Status Icons */}
+                        {isCorrectSelected && (
+                          <MaterialIcons name="check-circle" size={24} color="#22c55e" />
+                        )}
+                        {isWrongSelected && (
+                          <MaterialIcons name="cancel" size={24} color="#ef4444" />
+                        )}
+                        {!isSelected && isCorrect && isAnswered && (
+                          <MaterialIcons name="check-circle" size={20} color="#4ade80" />
                         )}
                       </View>
-                      {isSelected && isCorrect && (
-                        <MaterialIcons name="check-circle" size={20} color="#22c55e" />
-                      )}
-                      {isSelected && !isCorrect && (
-                        <MaterialIcons name="cancel" size={20} color="#ef4444" />
-                      )}
-                      {!isSelected && isCorrect && isAnswered && (
-                        <MaterialIcons name="check-circle" size={20} color="#4ade80" />
-                      )}
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                  </Animated.View>
                 );
               })}
             </View>
 
             {/* Explanation */}
-            {userAnswers[getCurrentSubjectId()]?.[currentQuestionIndex] !== null &&
+            {userAnswers[getCurrentSubjectId()]?.[currentQuestionIndex] !== undefined &&
+              userAnswers[getCurrentSubjectId()]?.[currentQuestionIndex] !== null &&
               currentQuestion.explanation_html && (
                 <View className="bg-blue-50 dark:bg-blue-950/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-5 mb-4">
                   <View className="flex-row gap-3">
                     <MaterialIcons name="info" size={20} color="#2563eb" />
                     <View className="flex-1">
-                      <BodyText className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
-                        Explanation
-                      </BodyText>
-                      <AutoHeightWebView
-                        html={currentQuestion.explanation_html}
-                        scrollEnabled={false}
-                      />
+                      <BodyText className="font-semibold text-blue-900 dark:text-blue-300 mb-2">💡 Explanation</BodyText>
+                      <AutoHeightWebView html={currentQuestion.explanation_html} scrollEnabled={false} />
                     </View>
                   </View>
                 </View>
               )}
           </>
         )}
-
-        {/* Navigation Buttons - Positioned after options for better accessibility */}
-        <View className="mt-4 pb-6 bg-white dark:bg-neutral-900">
-          <View className="flex-row items-center justify-between">
-            <Button
-              variant="outline"
-              size="md"
-              onPress={previousQuestion}
-              disabled={currentSubjectIndex === 0 && currentQuestionIndex === 0}
-              style={{ minHeight: 44, minWidth: 110 }}
-            >
-              ← Previous
-            </Button>
-            <Caption className="text-neutral-500 dark:text-neutral-400">
-              {currentQuestionIndex + 1}/{getCurrentQuestions().length}
-            </Caption>
-            <Button variant="primary" size="md" onPress={nextQuestion} style={{ minHeight: 44, minWidth: 110 }}>
-              Next →
-            </Button>
-          </View>
-        </View>
       </ScrollView>
 
-      {/* Bottom Action Bar - Fixed at bottom */}
-      <View className="absolute bottom-0 left-0 right-0 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800" style={{ paddingBottom: insets.bottom + 16, paddingHorizontal: 16, paddingTop: 16 }}>
-        <View className="flex-row items-center justify-between gap-3">
-          <Button variant="outline" size="md" onPress={exitQuiz} style={{ flex: 1, minHeight: 44 }}>
-            Exit & Save
-          </Button>
-          <Button variant="primary" size="md" onPress={submitQuiz} style={{ flex: 1, minHeight: 44 }}>
-            Submit
-          </Button>
+      {/* Fixed Bottom Bar - Merged Navigation and Actions */}
+      <View
+        className="absolute bottom-0 left-0 right-0 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800"
+        style={{ paddingBottom: insets.bottom + 12, paddingHorizontal: 16, paddingTop: 12 }}
+      >
+        {/* Navigation Row */}
+        <View className="flex-row items-center justify-between mb-3">
+          <TouchableOpacity
+            onPress={previousQuestion}
+            disabled={currentSubjectIndex === 0 && currentQuestionIndex === 0}
+            className="w-12 h-12 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800 disabled:opacity-40"
+          >
+            <MaterialIcons
+              name="chevron-left"
+              size={28}
+              color={isDark ? "#fafafa" : "#171717"}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setShowQuestionNavigator(true)}
+            className="flex-row items-center px-4 py-2 bg-primary-50 dark:bg-primary-900/20 rounded-full"
+          >
+            <BodyText className="text-primary-700 dark:text-primary-300 font-semibold">
+              {currentQuestionIndex + 1}/{getCurrentQuestions().length}
+            </BodyText>
+            <MaterialIcons
+              name="expand-more"
+              size={20}
+              color={isDark ? "#818cf8" : "#4f46e5"}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={nextQuestion}
+            className="w-12 h-12 items-center justify-center rounded-full bg-primary-600"
+          >
+            <MaterialIcons
+              name="chevron-right"
+              size={28}
+              color="#ffffff"
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Action Buttons Row */}
+        <View className="flex-row items-center gap-3">
+          <TouchableOpacity
+            onPress={exitQuiz}
+            className="flex-1 py-3 rounded-xl border border-neutral-300 dark:border-neutral-700 items-center"
+          >
+            <BodyText className="text-neutral-600 dark:text-neutral-400">
+              Exit & Save
+            </BodyText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={submitQuiz}
+            className="flex-1 py-3 rounded-xl bg-primary-600 items-center"
+          >
+            <BodyText className="text-white font-semibold">
+              Submit Test
+            </BodyText>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -760,50 +1037,81 @@ export default function JambQuizScreen() {
         onRequestClose={() => setShowQuestionNavigator(false)}
       >
         <View className="flex-1 bg-white dark:bg-neutral-900">
-          <View className="border-b border-neutral-200 dark:border-neutral-800" style={{ paddingTop: insets.top + 56, paddingBottom: 16, paddingHorizontal: 16 }}>
+          <View
+            className="border-b border-neutral-200 dark:border-neutral-800"
+            style={{ paddingTop: insets.top + 16, paddingBottom: 16, paddingHorizontal: 16 }}
+          >
             <View className="flex-row items-center justify-between">
-              <Heading size="lg">Questions</Heading>
-              <TouchableOpacity onPress={() => setShowQuestionNavigator(false)} style={{ minHeight: 44 }}>
+              <Heading size="lg">📋 Questions</Heading>
+              <TouchableOpacity onPress={() => setShowQuestionNavigator(false)} style={{ minHeight: 44, minWidth: 44 }}>
                 <MaterialIcons name="close" size={24} color={isDark ? "#fafafa" : "#171717"} />
               </TouchableOpacity>
             </View>
+
+            {/* Legend */}
+            <View className="flex-row items-center gap-4 mt-3">
+              <View className="flex-row items-center gap-1.5">
+                <View className="w-3 h-3 bg-green-500 rounded-full" />
+                <Caption className="text-neutral-600 dark:text-neutral-400">Answered</Caption>
+              </View>
+              <View className="flex-row items-center gap-1.5">
+                <View className="w-3 h-3 bg-primary-600 rounded-full" />
+                <Caption className="text-neutral-600 dark:text-neutral-400">Current</Caption>
+              </View>
+              <View className="flex-row items-center gap-1.5">
+                <View className="w-3 h-3 bg-neutral-200 dark:bg-neutral-700 rounded-full" />
+                <Caption className="text-neutral-600 dark:text-neutral-400">Unanswered</Caption>
+              </View>
+            </View>
+
             <Caption className="mt-2 text-neutral-500 dark:text-neutral-400">
-              Answered: {getTotalAnswered()}/{getTotalQuestions()}
+              Total Progress: {getTotalAnswered()}/{getTotalQuestions()} answered
             </Caption>
           </View>
 
-          <ScrollView className="flex-1 p-4">
+          <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
             {subjectsData.map((subject, subjectIndex) => {
               const questions = questionsBySubject[subject.id] ?? [];
               const subjectAnswers = userAnswers[subject.id] ?? {};
+              const answeredCount = getAnsweredCount(subject.id);
 
               return (
                 <View key={subject.id} className="mb-6">
-                  <Heading size="md" className="mb-3">
-                    {subject.name}
-                  </Heading>
+                  <View className="flex-row items-center justify-between mb-3">
+                    <Heading size="md">{subject.name}</Heading>
+                    <Caption className="text-neutral-500 dark:text-neutral-400">
+                      {answeredCount}/{questions.length} answered
+                    </Caption>
+                  </View>
                   <View className="flex-row flex-wrap gap-2">
                     {questions.map((_, questionIndex) => {
-                      const isAnswered = subjectAnswers[questionIndex] !== undefined && subjectAnswers[questionIndex] !== null;
+                      const isAnswered = subjectAnswers[questionIndex] !== undefined &&
+                        subjectAnswers[questionIndex] !== null;
                       const isCurrent =
-                        currentSubjectIndex === subjectIndex && currentQuestionIndex === questionIndex;
+                        currentSubjectIndex === subjectIndex &&
+                        currentQuestionIndex === questionIndex;
 
                       return (
                         <TouchableOpacity
                           key={questionIndex}
                           onPress={() => jumpToQuestion(subjectIndex, questionIndex)}
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                            isCurrent
-                              ? "bg-primary-600"
-                              : isAnswered
+                          className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${isCurrent
+                            ? "bg-primary-600"
+                            : isAnswered
                               ? "bg-green-500"
                               : "bg-neutral-100 dark:bg-neutral-800"
-                          }`}
+                            }`}
+                          style={{
+                            shadowColor: isCurrent ? "#4f46e5" : isAnswered ? "#22c55e" : "#000",
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 4,
+                            elevation: 2,
+                          }}
                         >
                           <BodyText
-                            className={`font-semibold ${
-                              isCurrent || isAnswered ? "text-white" : "text-neutral-600 dark:text-neutral-400"
-                            }`}
+                            className={`font-semibold ${isCurrent || isAnswered ? "text-white" : "text-neutral-600 dark:text-neutral-400"
+                              }`}
                           >
                             {questionIndex + 1}
                           </BodyText>
@@ -816,7 +1124,10 @@ export default function JambQuizScreen() {
             })}
           </ScrollView>
 
-          <View className="border-t border-neutral-200 dark:border-neutral-800" style={{ paddingBottom: insets.bottom + 16, paddingHorizontal: 16, paddingTop: 16 }}>
+          <View
+            className="border-t border-neutral-200 dark:border-neutral-800"
+            style={{ paddingBottom: insets.bottom + 16, paddingHorizontal: 16, paddingTop: 16 }}
+          >
             <Button variant="outline" size="lg" fullWidth onPress={exitQuiz} style={{ minHeight: 44 }}>
               Exit & Save Progress
             </Button>

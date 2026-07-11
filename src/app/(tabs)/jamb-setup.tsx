@@ -20,6 +20,7 @@ import {
   Caption,
 } from "@/components/Typography";
 import api from "@/lib/api";
+import { storage } from "@/lib/storage";
 
 type ExamType = {
   id: number;
@@ -292,7 +293,7 @@ export default function JambSetupScreen() {
       const parsedQuestionsPerSubject = Number(questionsPerSubjectInput);
       const questionsPerSubject =
         questionsPerSubjectInput.trim().length > 0 &&
-        Number.isFinite(parsedQuestionsPerSubject)
+          Number.isFinite(parsedQuestionsPerSubject)
           ? parsedQuestionsPerSubject
           : undefined;
       const parsedTimeLimit = Number(timeLimitInput);
@@ -326,12 +327,23 @@ export default function JambSetupScreen() {
         throw new Error("Invalid attempt data received from server.");
       }
     } catch (startError) {
-      const message =
-        startError instanceof Error
-          ? startError.message
-          : "Could not prepare JAMB exam. Please try again.";
+      // const message =
+      //   startError instanceof Error
+      //     ? startError.message
+      //     : "Could not prepare JAMB exam. Please try again.";
 
-      Alert.alert("Preparation failed", message);
+      // Alert.alert("Preparation failed", message);
+      console.log("START ERROR:", startError);
+      console.log("Status:", startError?.response?.status);
+      console.log("Response:", startError?.response?.data);
+
+      const message =
+        startError?.response?.data?.message ||
+        startError?.response?.data?.error ||
+        startError?.message ||
+        "Could not prepare JAMB exam.";
+
+      Alert.alert("Preparation failed", message)
     } finally {
       setIsPreparing(false);
       setPrepareStatus(null);
@@ -456,11 +468,10 @@ export default function JambSetupScreen() {
                       </View>
                     ) : (
                       <View
-                        className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
-                          isSelected
-                            ? "bg-primary-500 border-primary-500"
-                            : "border-neutral-300 dark:border-neutral-600"
-                        }`}
+                        className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected
+                          ? "bg-primary-500 border-primary-500"
+                          : "border-neutral-300 dark:border-neutral-600"
+                          }`}
                       >
                         {isSelected && (
                           <MaterialIcons name="check" size={14} color="white" />
