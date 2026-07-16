@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/context/ThemeContext";
@@ -677,9 +678,11 @@ const PracticeQuizScreen = () => {
                 scrollEnabled={true}
               />
               {currentQuestion.question_image && (
-                <WebView
+                <Image
                   source={{ uri: currentQuestion.question_image }}
-                  style={{ height: 200, marginTop: 12, borderRadius: 8 }}
+                  style={{ height: 200, marginTop: 12, borderRadius: 8, width: "100%" }}
+                  contentFit="contain"
+                  transition={200}
                 />
               )}
             </View>

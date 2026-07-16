@@ -79,7 +79,8 @@ src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js">
 *{
 box-sizing:border-box;
 max-width:100%;
-overflow-wrap:anywhere;
+overflow-wrap:break-word;
+word-wrap:break-word;
 word-break:break-word;
 }
 
@@ -105,6 +106,8 @@ color:#f5f5f5;
 padding:2px;
 width:100%;
 overflow:visible;
+min-height:fit-content;
+height:auto;
 }
 
 img{
