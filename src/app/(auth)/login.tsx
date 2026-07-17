@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-native';
+import { Link } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -39,7 +40,7 @@ export default function LoginScreen() {
       console.log('Login error:', error.response?.data || error.message);
       Alert.alert(
         'Login Failed',
-        error.response?.data?.message || 'Please check your credentials and try again.'
+        error.response?.data?.message || 'Please check your credentials and try again.',
       );
     } finally {
       setLoading(false);
@@ -56,7 +57,9 @@ export default function LoginScreen() {
           <MaterialIcons name="school" size={32} color="#4f46e5" />
         </View>
         <Heading size="xl">Welcome Back</Heading>
-        <BodyText variant="subtle" className="mt-2">Sign in to continue your learning journey.</BodyText>
+        <BodyText variant="subtle" className="mt-2">
+          Sign in to continue your learning journey.
+        </BodyText>
       </View>
 
       <View className="space-y-4">
@@ -72,7 +75,7 @@ export default function LoginScreen() {
 
         <Input
           label="Password"
-          placeholder="••••••••"
+          placeholder="Password"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
@@ -82,6 +85,17 @@ export default function LoginScreen() {
         <Button variant="primary" size="lg" fullWidth onPress={handleLogin} loading={loading}>
           Sign In
         </Button>
+      </View>
+
+      <View className="flex-row items-center justify-center mt-8 gap-1">
+        <Text className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+          New to Future Academy?
+        </Text>
+        <Link href="/(auth)/register" asChild>
+          <Pressable>
+            <Text className="text-sm font-semibold text-primary-600">Create account</Text>
+          </Pressable>
+        </Link>
       </View>
     </KeyboardAvoidingView>
   );

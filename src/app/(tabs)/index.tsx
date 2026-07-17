@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNetInfo } from "@react-native-community/netinfo";
 import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { Card } from "@/components";
 import {
   BodyText,
@@ -17,6 +18,9 @@ import {
   Subheading,
 } from "@/components/Typography";
 import { CardSkeleton, ListSkeleton } from "@/components/Skeleton";
+import ParentDashboard from "@/components/ParentDashboard";
+
+const PARENT_ACCOUNT_TYPES = ["guardian", "school", "community"];
 
 type AnalyticsOverview = {
   total_quizzes: number;
@@ -52,6 +56,13 @@ type Subject = {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+
+  // If the user is a parent type, render the Parent Dashboard instead
+  const isParent = PARENT_ACCOUNT_TYPES.includes(user?.account_type ?? "");
+  if (isParent) {
+    return <ParentDashboard />;
+  }
 
   const netInfo = useNetInfo();
   const [isRefreshing, setIsRefreshing] = useState(false);

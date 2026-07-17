@@ -1,12 +1,16 @@
 import { Tabs } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
-import { useNetInfo } from "@react-native-community/netinfo";
+import { useAuth } from "@/context/AuthContext";
+
+const PARENT_ACCOUNT_TYPES = ["guardian", "school", "community"];
 
 export default function TabLayout() {
   const { theme } = useTheme();
+  const { user } = useAuth();
 
   const isDark = theme === "dark";
+  const isParent = PARENT_ACCOUNT_TYPES.includes(user?.account_type ?? "");
 
   return (
     <Tabs
@@ -28,7 +32,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Dashboard",
+          title: isParent ? "Guardian Dashboard" : "Dashboard",
           tabBarLabel: "Home",
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="dashboard" color={color} size={size} />
@@ -40,6 +44,7 @@ export default function TabLayout() {
         options={{
           title: "Practice",
           tabBarLabel: "Practice",
+          href: isParent ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="menu-book" color={color} size={size} />
           ),
@@ -50,6 +55,7 @@ export default function TabLayout() {
         options={{
           title: "JAMB",
           tabBarLabel: "JAMB",
+          href: isParent ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="auto-stories" color={color} size={size} />
           ),
@@ -60,6 +66,7 @@ export default function TabLayout() {
         options={{
           title: "Mock Exam",
           tabBarLabel: "Mock",
+          href: isParent ? null : undefined,
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="timer" color={color} size={size} />
           ),
@@ -78,3 +85,4 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+

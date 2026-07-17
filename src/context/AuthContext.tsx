@@ -9,6 +9,7 @@ type User = {
   name: string;
   email: string;
   has_completed_onboarding: boolean;
+  account_type?: string;
 };
 
 type AuthContextType = {
