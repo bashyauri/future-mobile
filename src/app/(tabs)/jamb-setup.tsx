@@ -334,13 +334,14 @@ export default function JambSetupScreen() {
 
       // Alert.alert("Preparation failed", message);
       console.log("START ERROR:", startError);
-      console.log("Status:", startError?.response?.status);
-      console.log("Response:", startError?.response?.data);
+      const err = startError as any;
+      console.log("Status:", err?.response?.status);
+      console.log("Response:", err?.response?.data);
 
       const message =
-        startError?.response?.data?.message ||
-        startError?.response?.data?.error ||
-        startError?.message ||
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
         "Could not prepare JAMB exam.";
 
       Alert.alert("Preparation failed", message)

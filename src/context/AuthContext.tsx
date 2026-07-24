@@ -10,6 +10,8 @@ type User = {
   email: string;
   has_completed_onboarding: boolean;
   account_type?: string;
+  has_active_subscription?: boolean;
+  on_trial?: boolean;
 };
 
 type AuthContextType = {

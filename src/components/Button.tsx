@@ -1,11 +1,11 @@
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, View, ViewStyle, TextStyle } from 'react-native';
+import { TouchableOpacity, Text, ActivityIndicator, View, ViewStyle, TextStyle, TouchableOpacityProps } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 
 type ButtonVariant = 'primary' | 'danger' | 'outline' | 'filled' | 'ghost';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
-interface ButtonProps {
+interface ButtonProps extends TouchableOpacityProps {
   children: React.ReactNode;
   onPress?: () => void;
   variant?: ButtonVariant;
@@ -33,6 +33,7 @@ export function Button({
   leftIcon,
   rightIcon,
   className,
+  ...props
 }: ButtonProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -94,10 +95,12 @@ export function Button({
 
   return (
     <TouchableOpacity
+      activeOpacity={0.7}
       onPress={onPress}
       disabled={disabled || loading}
       className={`${getVariantClasses()} ${getSizeClasses()} ${fullWidth ? 'w-full' : ''} ${disabled ? 'opacity-50' : ''} ${className || ''}`}
       style={style}
+      {...props}
     >
       {loading ? (
         <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? (isDark ? '#fafafa' : '#171717') : '#ffffff'} />

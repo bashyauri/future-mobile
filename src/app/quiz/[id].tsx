@@ -104,7 +104,7 @@ export default function QuizPlayerScreen() {
   const [reviewLoading, setReviewLoading] = useState(false);
   const [detailedResults, setDetailedResults] = useState<DetailedReview | null>(null);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load quiz details and start attempt
   useEffect(() => {

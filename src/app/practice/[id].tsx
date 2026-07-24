@@ -69,8 +69,8 @@ const PracticeQuizScreen = () => {
   const [score, setScore] = useState(0);
   const [showQuestionNavigator, setShowQuestionNavigator] = useState(false);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Responsive heights based on screen size
   const webViewHeight = Math.max(120, Math.min(height * 0.15, 200));

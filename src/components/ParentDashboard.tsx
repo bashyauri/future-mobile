@@ -989,7 +989,9 @@ export default function ParentDashboard() {
                 </View>
               ) : (
                 !child.can_view_metrics && (
-                  <View
+                  <TouchableOpacity
+                    onPress={() => router.push({ pathname: "/pricing", params: { studentId: child.id } })}
+                    activeOpacity={0.7}
                     className={`px-4 py-4 items-center ${
                       isDark ? "bg-neutral-800/40" : "bg-neutral-50"
                     }`}
@@ -1006,7 +1008,7 @@ export default function ParentDashboard() {
                     >
                       Subscribe to view progress metrics
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 )
               )}
 

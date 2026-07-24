@@ -186,7 +186,7 @@ export default function MockQuizScreen() {
   // ── Refs ─────────────────────────────────────────────────────────────────────
 
   const scrollViewRef = useRef<ScrollView>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const timerPulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -872,7 +872,7 @@ export default function MockQuizScreen() {
             </View>
 
             {/* No explanation shown during mock exam — revealed only in post-submit review */}
-            {false && currentQuestion.explanation_html && (
+            {false && currentQuestion?.explanation_html && (
                 <View className="bg-blue-50 dark:bg-blue-950/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-5 mb-4">
                   <View className="flex-row gap-3">
                     <MaterialIcons name="info" size={20} color="#2563eb" />
@@ -880,7 +880,7 @@ export default function MockQuizScreen() {
                       <BodyText className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
                         💡 Explanation
                       </BodyText>
-                      <AutoHeightWebView html={currentQuestion.explanation_html} scrollEnabled={false} />
+                      <AutoHeightWebView html={currentQuestion?.explanation_html || ''} scrollEnabled={false} />
                     </View>
                   </View>
                 </View>

@@ -198,6 +198,27 @@ export default function HomeScreen() {
               </View>
             )}
 
+            {user?.has_active_subscription === false && (
+              <TouchableOpacity
+                onPress={() => router.push("/pricing")}
+                activeOpacity={0.8}
+                className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-xl p-4 mb-5 flex-row items-center"
+              >
+                <View className="bg-primary-100 dark:bg-primary-900/50 p-2 rounded-full mr-3">
+                  <MaterialIcons name="workspace-premium" size={24} color="#3b82f6" />
+                </View>
+                <View className="flex-1">
+                  <Subheading size="sm" className="text-primary-800 dark:text-primary-300">
+                    Unlock Full Access
+                  </Subheading>
+                  <Caption className="text-primary-700 dark:text-primary-400 mt-0.5">
+                    Subscribe to access all premium features and analytics
+                  </Caption>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color="#3b82f6" />
+              </TouchableOpacity>
+            )}
+
             <Subheading size="md" className="mb-3 px-1">
               Quick Access
             </Subheading>

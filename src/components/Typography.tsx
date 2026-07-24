@@ -1,23 +1,25 @@
 import React from 'react';
-import { Text, TextStyle } from 'react-native';
+import { Text, TextProps, TextStyle } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 
-type HeadingSize = 'xl' | 'lg' | 'md' | 'sm';
+type HeadingSize = '2xl' | 'xl' | 'lg' | 'md' | 'sm';
 type TextVariant = 'default' | 'subtle' | 'muted';
 
-interface HeadingProps {
+interface HeadingProps extends TextProps {
   children: React.ReactNode;
   size?: HeadingSize;
   className?: string;
   style?: TextStyle;
 }
 
-export function Heading({ children, size = 'md', className = '', style }: HeadingProps) {
+export function Heading({ children, size = 'md', className = '', style, ...props }: HeadingProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
   const getSizeClasses = () => {
     switch (size) {
+      case '2xl':
+        return 'text-4xl font-bold';
       case 'xl':
         return 'text-3xl font-bold';
       case 'lg':
@@ -33,25 +35,27 @@ export function Heading({ children, size = 'md', className = '', style }: Headin
   const getColorClass = isDark ? 'text-neutral-50' : 'text-neutral-900';
 
   return (
-    <Text className={`${getSizeClasses()} ${getColorClass} ${className}`} style={style}>
+    <Text className={`${getSizeClasses()} ${getColorClass} ${className}`} style={style} {...props}>
       {children}
     </Text>
   );
 }
 
-interface SubheadingProps {
+interface SubheadingProps extends TextProps {
   children: React.ReactNode;
-  size?: 'lg' | 'md' | 'sm';
+  size?: 'xl' | 'lg' | 'md' | 'sm';
   className?: string;
   style?: TextStyle;
 }
 
-export function Subheading({ children, size = 'md', className = '', style }: SubheadingProps) {
+export function Subheading({ children, size = 'md', className = '', style, ...props }: SubheadingProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
   const getSizeClasses = () => {
     switch (size) {
+      case 'xl':
+        return 'text-xl font-medium';
       case 'lg':
         return 'text-lg font-medium';
       case 'sm':
@@ -65,20 +69,21 @@ export function Subheading({ children, size = 'md', className = '', style }: Sub
   const getColorClass = isDark ? 'text-neutral-300' : 'text-neutral-600';
 
   return (
-    <Text className={`${getSizeClasses()} ${getColorClass} ${className}`} style={style}>
+    <Text className={`${getSizeClasses()} ${getColorClass} ${className}`} style={style} {...props}>
       {children}
     </Text>
   );
 }
 
-interface BodyTextProps {
+interface BodyTextProps extends TextProps {
   children: React.ReactNode;
   variant?: TextVariant;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | string;
   className?: string;
   style?: TextStyle;
 }
 
-export function BodyText({ children, variant = 'default', className = '', style }: BodyTextProps) {
+export function BodyText({ children, variant = 'default', size, className = '', style, ...props }: BodyTextProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -95,7 +100,7 @@ export function BodyText({ children, variant = 'default', className = '', style 
   };
 
   return (
-    <Text className={`text-base ${getVariantClasses()} ${className}`} style={style}>
+    <Text className={`text-base ${getVariantClasses()} ${className}`} style={style} {...props}>
       {children}
     </Text>
   );
