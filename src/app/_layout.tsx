@@ -28,7 +28,11 @@ function RootLayoutNav() {
       if (isParentUser && inAuthGroup) {
         // Parents go straight to dashboard, skip onboarding entirely
         router.replace("/(tabs)");
-      } else if (!isParentUser && !user.has_completed_onboarding && segments[1] !== "onboarding") {
+      } else if (
+        !isParentUser &&
+        !user.has_completed_onboarding &&
+        segments[1] !== "onboarding"
+      ) {
         // Redirect students to onboarding if not completed
         router.replace("/(auth)/onboarding");
       } else if (user.has_completed_onboarding && inAuthGroup) {
@@ -50,7 +54,6 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="parent" options={{ headerShown: false }} />
     </Stack>
   );
 }

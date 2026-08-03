@@ -118,6 +118,78 @@ export default function LessonVideoScreen() {
   >({});
 
   const webViewRef = useRef<WebView>(null);
+  const lastSyncTimeRef = useRef<number>(0);
+  const timeSpentRef = useRef<number>(0);
+
+  const injectedJavaScript = `
+    (function() {
+      var checkVideo = setInterval(function() {
+        var video = document.querySelector('video');
+        if (video && !video.dataset.tracked) {
+          video.dataset.tracked = 'true';
+          
+          video.addEventListener('timeupdate', function() {
+            var data = {
+              currentTime: video.currentTime,
+              duration: video.duration,
+              ended: video.ended
+            };
+            window.ReactNativeWebView.postMessage(JSON.stringify(data));
+          });
+        }
+      }, 1000);
+    })();
+    true;
+  `;
+
+  const handleVideoMessage = async (event: any) => {
+    if (isCompleted || isCompleting) return;
+
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.currentTime === undefined) return;
+      
+      const currentTime = data.currentTime || 0;
+      const duration = data.duration || lesson?.duration_seconds || 1;
+      const ended = data.ended;
+
+      const progressPercentage = Math.min(
+        100,
+        Math.max(0, Math.floor((currentTime / duration) * 100))
+      );
+
+      const now = Date.now();
+      // Sync every 10 seconds or if ended
+      if (ended || now - lastSyncTimeRef.current > 10000) {
+        const timeDiff = lastSyncTimeRef.current === 0 ? 0 : (now - lastSyncTimeRef.current) / 1000;
+        lastSyncTimeRef.current = now;
+        
+        if (timeDiff > 0 && timeDiff < 20) {
+            timeSpentRef.current += Math.floor(timeDiff);
+        }
+
+        if (lesson && lesson.id) {
+            await api.post(\`/lessons/\${lesson.id}/progress\`, {
+                current_time_seconds: Math.floor(currentTime),
+                progress_percentage: progressPercentage,
+                time_spent_seconds: timeSpentRef.current,
+                is_completed: false
+            }).catch(() => {});
+            
+            // Auto complete if ended and no quiz required
+            const hasQuiz = !!lesson.quiz;
+            const isQuizDone = lesson.quiz_completed;
+            const canCompleteNow = !hasQuiz || isQuizDone;
+            
+            if (ended && canCompleteNow && !isCompleted && !isCompleting) {
+                markAsCompleted();
+            }
+        }
+      }
+    } catch (e) {
+      // ignore JSON parse errors from other messages
+    }
+  };
 
   const loadLesson = async () => {
     try {
@@ -307,6 +379,8 @@ export default function LessonVideoScreen() {
               javaScriptEnabled
               domStorageEnabled
               startInLoadingState
+              injectedJavaScript={injectedJavaScript}
+              onMessage={handleVideoMessage}
             />
           </View>
         ) : (
