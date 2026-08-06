@@ -74,6 +74,21 @@ export default function OnboardingScreen() {
   const [selectedExamTypes, setSelectedExamTypes] = useState<number[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
 
+  const selectedStreamConfig = streams.find(
+    (stream) => stream.slug === selectedStream,
+  );
+
+  const fallbackSubjects: Subject[] =
+    selectedStreamConfig?.default_subject_ids.map((subjectId, index) => ({
+      id: subjectId,
+      name:
+        selectedStreamConfig.default_subject_names[index] ||
+        `Subject ${subjectId}`,
+      code: "",
+    })) ?? [];
+
+  const availableSubjects = subjects.length > 0 ? subjects : fallbackSubjects;
+
   const loadStreams = async () => {
     try {
       setFetchingStreams(true);
@@ -118,23 +133,24 @@ export default function OnboardingScreen() {
   useEffect(() => {
     loadExamTypes();
   }, []);
+  const loadSubjects = async () => {
+    try {
+      setFetchingSubjects(true);
+      setSubjectError(null);
+      const response = await api.get("/config/subjects");
+      const subjectsData = Array.isArray(response.data)
+        ? response.data
+        : response.data?.data || [];
+      setSubjects(subjectsData);
+    } catch (error) {
+      console.log("Error fetching subjects:", error);
+      setSubjectError("Could not load subjects. Please check your connection.");
+    } finally {
+      setFetchingSubjects(false);
+    }
+  };
+
   useEffect(() => {
-    const loadSubjects = async () => {
-      try {
-        const response = await api.get("/config/subjects");
-        const subjectsData = Array.isArray(response.data)
-          ? response.data
-          : response.data?.data || [];
-        setSubjects(subjectsData);
-      } catch (error) {
-        console.log("Error fetching subjects:", error);
-        setSubjectError(
-          "Could not load subjects. Please check your connection.",
-        );
-      } finally {
-        setFetchingSubjects(false);
-      }
-    };
     loadSubjects();
   }, []);
 
@@ -148,10 +164,6 @@ export default function OnboardingScreen() {
     setSelectedSubjects((prev) => {
       if (prev.includes(subjectId)) {
         return prev.filter((id) => id !== subjectId);
-      }
-      if (prev.length >= 4) {
-        Alert.alert("Limit Reached", "You can only select up to 4 subjects.");
-        return prev;
       }
       return [...prev, subjectId];
     });
@@ -190,10 +202,6 @@ export default function OnboardingScreen() {
 
     setLoading(true);
     try {
-      const selectedStreamConfig = streams.find(
-        (stream) => stream.slug === selectedStream,
-      );
-
       const streamSubjectIds = selectedStreamConfig?.default_subject_ids ?? [];
 
       const finalSubjectIds =
@@ -256,6 +264,31 @@ export default function OnboardingScreen() {
         className="px-6 pb-4"
         style={{ paddingTop: Math.max(insets.top, 12) + 12 }}
       >
+        {currentStep > 1 && (
+          <Button
+            variant="ghost"
+            onPress={
+              currentStep === 3 && selectedStream === "custom"
+                ? () => setCurrentStep(1)
+                : handlePrevious
+            }
+            className="self-start mb-4"
+            accessibilityLabel="Go to previous onboarding step"
+          >
+            <View className="flex-row items-center gap-2">
+              <MaterialIcons
+                name="arrow-back"
+                size={18}
+                color={isDark ? "#fff" : "#171717"}
+              />
+              <BodyText>
+                {currentStep === 3 && selectedStream === "custom"
+                  ? "Back to Streams"
+                  : "Previous"}
+              </BodyText>
+            </View>
+          </Button>
+        )}
         <View className="w-14 h-14 rounded-2xl bg-primary-100 dark:bg-primary-900/30 items-center justify-center mb-4">
           <MaterialIcons name="auto-awesome" size={28} color="#4f46e5" />
         </View>
@@ -498,7 +531,7 @@ export default function OnboardingScreen() {
             <View className="flex-row justify-between items-center mb-4">
               <Subheading>Available Subjects</Subheading>
               <BodyText variant="subtle" size="sm">
-                {selectedSubjects.length}/4 Selected
+                {selectedSubjects.length} Selected
               </BodyText>
             </View>
 
@@ -509,13 +542,22 @@ export default function OnboardingScreen() {
                   Loading subjects...
                 </BodyText>
               </View>
-            ) : subjectError ? (
-              <BodyText className="text-center text-red-600 dark:text-red-400 mt-4">
-                {subjectError}
-              </BodyText>
-            ) : subjects.length > 0 ? (
+            ) : subjectError && availableSubjects.length === 0 ? (
+              <View className="py-10 items-center justify-center">
+                <BodyText className="text-center text-red-600 dark:text-red-400 mt-4">
+                  {subjectError}
+                </BodyText>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onPress={loadSubjects}
+                >
+                  Retry
+                </Button>
+              </View>
+            ) : availableSubjects.length > 0 ? (
               <View className="flex-row flex-wrap justify-between gap-y-3">
-                {subjects.map((subject) => {
+                {availableSubjects.map((subject) => {
                   const isSelected = selectedSubjects.includes(subject.id);
                   return (
                     <TouchableOpacity
