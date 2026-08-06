@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import {
   View,
@@ -8,11 +8,17 @@ import {
   SafeAreaView,
   TouchableOpacity,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { Button, Card } from "@/components";
-import { Heading, BodyText, Subheading, Caption } from "@/components/Typography";
+import {
+  Heading,
+  BodyText,
+  Subheading,
+  Caption,
+} from "@/components/Typography";
 import api from "@/lib/api";
 
 type Subject = {
@@ -28,38 +34,20 @@ type ExamType = {
   description?: string;
 };
 
-const STREAMS = [
-  {
-    id: "science",
-    name: "Science",
-    description: "Physics, Chemistry, Biology, Math",
-    subjects: ["Mathematics", "English Language", "Physics", "Chemistry"],
-    icon: "science",
-  },
-  {
-    id: "arts",
-    name: "Arts",
-    description: "Literature, Government, History",
-    subjects: [
-      "Mathematics",
-      "English Language",
-      "Literature in English",
-      "Government",
-    ],
-    icon: "palette",
-  },
-  {
-    id: "commercial",
-    name: "Commercial",
-    description: "Accounting, Commerce, Economics",
-    subjects: ["Mathematics", "English Language", "Economics", "Commerce"],
-    icon: "account-balance",
-  },
-];
+type StreamOption = {
+  id: number;
+  slug: string;
+  name: string;
+  description?: string | null;
+  icon?: string | null;
+  default_subject_ids: number[];
+  default_subject_names: string[];
+};
 
 export default function OnboardingScreen() {
   const { user, updateUser } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (user?.has_completed_onboarding) {
@@ -72,9 +60,13 @@ export default function OnboardingScreen() {
   const [loading, setLoading] = useState(false);
   const [fetchingSubjects, setFetchingSubjects] = useState(true);
   const [fetchingExamTypes, setFetchingExamTypes] = useState(true);
+  const [fetchingStreams, setFetchingStreams] = useState(true);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const [subjectError, setSubjectError] = useState<string | null>(null);
+  const [examTypeError, setExamTypeError] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
+  const [streams, setStreams] = useState<StreamOption[]>([]);
 
   // Step-based state
   const [currentStep, setCurrentStep] = useState(1);
@@ -82,21 +74,48 @@ export default function OnboardingScreen() {
   const [selectedExamTypes, setSelectedExamTypes] = useState<number[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
 
+  const loadStreams = async () => {
+    try {
+      setFetchingStreams(true);
+      setStreamError(null);
+      const response = await api.get("/config/streams");
+      const streamsData = Array.isArray(response.data)
+        ? response.data
+        : response.data?.data || [];
+      setStreams(streamsData);
+    } catch (error) {
+      console.log("Error fetching streams:", error);
+      setStreamError("Could not load streams. Please check your connection.");
+    } finally {
+      setFetchingStreams(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStreams();
+  }, []);
+
+  const loadExamTypes = async () => {
+    try {
+      setFetchingExamTypes(true);
+      setExamTypeError(null);
+      const response = await api.get("/config/exam-types");
+      const examTypesData = Array.isArray(response.data)
+        ? response.data
+        : response.data?.data || [];
+      setExamTypes(examTypesData);
+    } catch (error) {
+      console.log("Error fetching exam types:", error);
+      setExamTypeError(
+        "Could not load exam types. Please check your connection.",
+      );
+    } finally {
+      setFetchingExamTypes(false);
+    }
+  };
+
   // Load exam types on mount
   useEffect(() => {
-    const loadExamTypes = async () => {
-      try {
-        const response = await api.get("/config/exam-types");
-        const examTypesData = Array.isArray(response.data)
-          ? response.data
-          : response.data?.data || [];
-        setExamTypes(examTypesData);
-      } catch (error) {
-        console.log("Error fetching exam types:", error);
-      } finally {
-        setFetchingExamTypes(false);
-      }
-    };
     loadExamTypes();
   }, []);
   useEffect(() => {
@@ -120,8 +139,8 @@ export default function OnboardingScreen() {
   }, []);
 
   const toggleExamType = (id: number) => {
-    setSelectedExamTypes(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    setSelectedExamTypes((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
@@ -138,16 +157,19 @@ export default function OnboardingScreen() {
     });
   };
 
-  const handleNext = () => {
-    if (currentStep === 1) {
-      if (!selectedStream) {
-        Alert.alert('Required', 'Please select a stream to continue');
-        return;
-      }
+  const handleStreamSelect = (streamId: string) => {
+    setSelectedStream(streamId);
+    if (streamId === "custom") {
+      setCurrentStep(3);
+    } else {
       setCurrentStep(2);
-    } else if (currentStep === 2) {
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStep === 2) {
       if (selectedExamTypes.length === 0) {
-        Alert.alert('Required', 'Please select at least one exam type');
+        Alert.alert("Required", "Please select at least one exam type");
         return;
       }
       setCurrentStep(3);
@@ -168,20 +190,14 @@ export default function OnboardingScreen() {
 
     setLoading(true);
     try {
-      const selectedStreamConfig = STREAMS.find(
-        (stream) => stream.id === selectedStream,
+      const selectedStreamConfig = streams.find(
+        (stream) => stream.slug === selectedStream,
       );
 
-      const streamSubjectIds =
-        selectedStreamConfig
-          ? subjects
-              .filter((subject) =>
-                selectedStreamConfig.subjects.includes(subject.name),
-              )
-              .map((subject) => subject.id)
-          : [];
+      const streamSubjectIds = selectedStreamConfig?.default_subject_ids ?? [];
 
-      const finalSubjectIds = selectedSubjects.length > 0 ? selectedSubjects : streamSubjectIds;
+      const finalSubjectIds =
+        selectedSubjects.length > 0 ? selectedSubjects : streamSubjectIds;
       const finalStreamValue = selectedStream || "manual";
 
       if (finalSubjectIds.length === 0) {
@@ -236,7 +252,10 @@ export default function OnboardingScreen() {
     <SafeAreaView
       className={`flex-1 ${isDark ? "bg-neutral-950" : "bg-white"}`}
     >
-      <View className="px-6 pt-10 pb-4">
+      <View
+        className="px-6 pb-4"
+        style={{ paddingTop: Math.max(insets.top, 12) + 12 }}
+      >
         <View className="w-14 h-14 rounded-2xl bg-primary-100 dark:bg-primary-900/30 items-center justify-center mb-4">
           <MaterialIcons name="auto-awesome" size={28} color="#4f46e5" />
         </View>
@@ -262,87 +281,117 @@ export default function OnboardingScreen() {
         </View>
       </View>
 
-      <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1 px-6"
+        contentContainerStyle={{ paddingBottom: 16 + insets.bottom }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Step 1: Select Stream */}
         {currentStep === 1 && (
           <View className="space-y-4 pt-2 pb-8">
-            {STREAMS.map((stream) => (
-              <Card
-                key={stream.id}
-                variant={selectedStream === stream.id ? "bordered" : "elevated"}
-                padding="md"
-                onPress={() => setSelectedStream(stream.id)}
-                className={
-                  selectedStream === stream.id
-                    ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
-                    : ""
-                }
-              >
-                <View className="flex-row items-start space-x-4">
-                  <MaterialIcons
-                    name={stream.icon as any}
-                    size={28}
-                    color={isDark ? "#a1a1aa" : "#71717a"}
-                  />
-                  <View className="flex-1">
-                    <Subheading
-                      size="lg"
-                      className={
-                        selectedStream === stream.id
-                          ? "text-primary-700 dark:text-primary-400"
-                          : ""
-                      }
-                    >
-                      {stream.name}
-                    </Subheading>
-                    <BodyText variant="subtle" size="sm" className="mt-1">
-                      {stream.description}
-                    </BodyText>
-                  </View>
-                  <View
-                    className={`w-6 h-6 rounded-full border-2 items-center justify-center ${selectedStream === stream.id ? "bg-primary-600 border-primary-600" : "border-neutral-300 dark:border-neutral-600"}`}
-                  >
-                    {selectedStream === stream.id && (
-                      <MaterialIcons name="check" size={14} color="white" />
-                    )}
-                  </View>
-                </View>
-                <View className="flex-row flex-wrap gap-2 mt-4">
-                  {stream.subjects.map((sub) => (
-                    <View
-                      key={sub}
-                      className="bg-white dark:bg-neutral-800 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
-                    >
-                      <BodyText
-                        size="xs"
-                        className="text-neutral-600 dark:text-neutral-300"
+            {fetchingStreams ? (
+              <View className="py-10 items-center justify-center">
+                <ActivityIndicator size="large" color="#4f46e5" />
+                <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">
+                  Loading streams...
+                </BodyText>
+              </View>
+            ) : streamError ? (
+              <View className="py-10 items-center justify-center">
+                <BodyText className="text-center text-red-600 dark:text-red-400">
+                  {streamError}
+                </BodyText>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onPress={loadStreams}
+                >
+                  Retry
+                </Button>
+              </View>
+            ) : streams.length === 0 ? (
+              <View className="py-10 items-center justify-center">
+                <BodyText className="text-center text-neutral-900 dark:text-neutral-400">
+                  No streams available right now.
+                </BodyText>
+              </View>
+            ) : (
+              streams.map((stream) => (
+                <Card
+                  key={stream.slug}
+                  variant={
+                    selectedStream === stream.slug ? "bordered" : "elevated"
+                  }
+                  padding="md"
+                  onPress={() => handleStreamSelect(stream.slug)}
+                  className={
+                    selectedStream === stream.slug
+                      ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
+                      : ""
+                  }
+                >
+                  <View className="flex-row items-start space-x-4">
+                    <MaterialIcons
+                      name={(stream.icon as any) || "school"}
+                      size={28}
+                      color={isDark ? "#a1a1aa" : "#71717a"}
+                    />
+                    <View className="flex-1">
+                      <Subheading
+                        size="lg"
+                        className={
+                          selectedStream === stream.slug
+                            ? "text-primary-700 dark:text-primary-400"
+                            : ""
+                        }
                       >
-                        {sub}
+                        {stream.name}
+                      </Subheading>
+                      <BodyText variant="subtle" size="sm" className="mt-1">
+                        {stream.description || ""}
                       </BodyText>
                     </View>
-                  ))}
-                </View>
-              </Card>
-            ))}
+                    <View
+                      className={`w-6 h-6 rounded-full border-2 items-center justify-center ${selectedStream === stream.slug ? "bg-primary-600 border-primary-600" : "border-neutral-300 dark:border-neutral-600"}`}
+                    >
+                      {selectedStream === stream.slug && (
+                        <MaterialIcons name="check" size={14} color="white" />
+                      )}
+                    </View>
+                  </View>
+                  <View className="flex-row flex-wrap gap-2 mt-4">
+                    {(stream.default_subject_names || []).map((sub) => (
+                      <View
+                        key={sub}
+                        className="bg-white dark:bg-neutral-800 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
+                      >
+                        <BodyText
+                          size="xs"
+                          className="text-neutral-600 dark:text-neutral-300"
+                        >
+                          {sub}
+                        </BodyText>
+                      </View>
+                    ))}
+                  </View>
+                </Card>
+              ))
+            )}
 
             {/* Custom Option */}
             <Card
               variant="outlined"
               padding="md"
-              onPress={() => setSelectedStream('custom')}
-              className={`border-purple-200 dark:border-purple-800 ${selectedStream === 'custom' ? 'border-purple-500' : ''}`}
+              onPress={() => handleStreamSelect("custom")}
+              className={`border-purple-200 dark:border-purple-800 ${selectedStream === "custom" ? "border-purple-500" : ""}`}
             >
               <View className="flex-row items-start space-x-4">
-                <MaterialIcons
-                  name="tune"
-                  size={28}
-                  color="#a855f7"
-                />
+                <MaterialIcons name="tune" size={28} color="#a855f7" />
                 <View className="flex-1">
                   <Subheading
                     size="lg"
                     className={
-                      selectedStream === 'custom'
+                      selectedStream === "custom"
                         ? "text-purple-700 dark:text-purple-400"
                         : "text-purple-700 dark:text-purple-300"
                     }
@@ -354,9 +403,9 @@ export default function OnboardingScreen() {
                   </BodyText>
                 </View>
                 <View
-                  className={`w-6 h-6 rounded-full border-2 items-center justify-center ${selectedStream === 'custom' ? "bg-purple-600 border-purple-600" : "border-neutral-300 dark:border-neutral-600"}`}
+                  className={`w-6 h-6 rounded-full border-2 items-center justify-center ${selectedStream === "custom" ? "bg-purple-600 border-purple-600" : "border-neutral-300 dark:border-neutral-600"}`}
                 >
-                  {selectedStream === 'custom' && (
+                  {selectedStream === "custom" && (
                     <MaterialIcons name="check" size={14} color="white" />
                   )}
                 </View>
@@ -375,25 +424,65 @@ export default function OnboardingScreen() {
                   Loading exam types...
                 </BodyText>
               </View>
+            ) : examTypeError ? (
+              <View className="py-10 items-center justify-center">
+                <BodyText className="text-center text-red-600 dark:text-red-400">
+                  {examTypeError}
+                </BodyText>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onPress={loadExamTypes}
+                >
+                  Retry
+                </Button>
+              </View>
+            ) : examTypes.length === 0 ? (
+              <View className="py-10 items-center justify-center">
+                <BodyText className="text-center text-neutral-900 dark:text-neutral-400">
+                  No exam types available right now.
+                </BodyText>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onPress={loadExamTypes}
+                >
+                  Refresh
+                </Button>
+              </View>
             ) : (
               examTypes.map((examType) => (
                 <Card
                   key={examType.id}
-                  variant={selectedExamTypes.includes(examType.id) ? "bordered" : "outlined"}
+                  variant={
+                    selectedExamTypes.includes(examType.id)
+                      ? "bordered"
+                      : "outlined"
+                  }
                   padding="md"
                   onPress={() => toggleExamType(examType.id)}
-                  className={selectedExamTypes.includes(examType.id) ? "border-blue-500" : ""}
+                  className={
+                    selectedExamTypes.includes(examType.id)
+                      ? "border-blue-500"
+                      : ""
+                  }
                 >
                   <View className="flex-row items-center">
-                    <View className={`w-6 h-6 rounded-full border-2 items-center justify-center mr-4 ${selectedExamTypes.includes(examType.id) ? 'border-blue-500 bg-blue-500' : 'border-neutral-300 dark:border-neutral-600'}`}>
+                    <View
+                      className={`w-6 h-6 rounded-full border-2 items-center justify-center mr-4 ${selectedExamTypes.includes(examType.id) ? "border-blue-500 bg-blue-500" : "border-neutral-300 dark:border-neutral-600"}`}
+                    >
                       {selectedExamTypes.includes(examType.id) && (
                         <MaterialIcons name="check" size={14} color="white" />
                       )}
                     </View>
                     <View className="flex-1">
-                      <BodyText className="font-semibold">{examType.name}</BodyText>
+                      <BodyText className="font-semibold">
+                        {examType.name}
+                      </BodyText>
                       {examType.description && (
-                        <BodyText variant="subtle" className="mt-1">{examType.description}</BodyText>
+                        <BodyText variant="subtle" className="mt-1">
+                          {examType.description}
+                        </BodyText>
                       )}
                     </View>
                   </View>
@@ -484,40 +573,13 @@ export default function OnboardingScreen() {
         )}
       </ScrollView>
 
-      <View className="px-6 py-4 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-900">
-        {currentStep === 1 ? (
-          <Button
-            variant="primary"
-            size="lg"
-            fullWidth
-            onPress={handleNext}
-            disabled={!selectedStream}
-          >
-            Next: Choose Exam Type
-          </Button>
-        ) : currentStep === 2 ? (
-          <View className="flex gap-3">
-            <Button
-              variant="outline"
-              size="lg"
-              className="flex-1"
-              onPress={handlePrevious}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="primary"
-              size="lg"
-              className="flex-1"
-              onPress={handleNext}
-              disabled={selectedExamTypes.length === 0}
-            >
-              Next: Choose Subjects
-            </Button>
-          </View>
-        ) : (
-          <View className="flex gap-3">
-            {selectedStream !== 'custom' ? (
+      {currentStep > 1 && (
+        <View
+          className="px-6 py-4 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-900"
+          style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+        >
+          {currentStep === 2 ? (
+            <View className="flex gap-3">
               <Button
                 variant="outline"
                 size="lg"
@@ -526,29 +588,51 @@ export default function OnboardingScreen() {
               >
                 Previous
               </Button>
-            ) : (
               <Button
-                variant="outline"
+                variant="primary"
                 size="lg"
                 className="flex-1"
-                onPress={() => setCurrentStep(1)}
+                onPress={handleNext}
+                disabled={selectedExamTypes.length === 0}
               >
-                Back to Streams
+                Next: Choose Subjects
               </Button>
-            )}
-            <Button
-              variant="primary"
-              size="lg"
-              className="flex-1"
-              onPress={handleComplete}
-              disabled={selectedSubjects.length === 0 || loading}
-              loading={loading}
-            >
-              Complete Setup
-            </Button>
-          </View>
-        )}
-      </View>
+            </View>
+          ) : (
+            <View className="flex gap-3">
+              {selectedStream !== "custom" ? (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="flex-1"
+                  onPress={handlePrevious}
+                >
+                  Previous
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="flex-1"
+                  onPress={() => setCurrentStep(1)}
+                >
+                  Back to Streams
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                size="lg"
+                className="flex-1"
+                onPress={handleComplete}
+                disabled={selectedSubjects.length === 0 || loading}
+                loading={loading}
+              >
+                Complete Setup
+              </Button>
+            </View>
+          )}
+        </View>
+      )}
     </SafeAreaView>
   );
 }

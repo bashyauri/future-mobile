@@ -127,7 +127,7 @@ export default function LessonVideoScreen() {
         var video = document.querySelector('video');
         if (video && !video.dataset.tracked) {
           video.dataset.tracked = 'true';
-          
+
           video.addEventListener('timeupdate', function() {
             var data = {
               currentTime: video.currentTime,

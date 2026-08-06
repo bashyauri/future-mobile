@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ViewStyle } from 'react-native';
+import { View, ViewStyle, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 
 interface CardProps {
@@ -76,13 +76,13 @@ export function Card({
 
   if (onPress) {
     return (
-      <View
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.9}
         className="active:scale-95 transition-transform duration-150"
-        onStartShouldSetResponder={() => true}
-        onResponderRelease={onPress}
       >
         {CardComponent}
-      </View>
+      </TouchableOpacity>
     );
   }
 
