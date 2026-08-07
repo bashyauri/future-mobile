@@ -57,13 +57,6 @@ type Subject = {
 export default function HomeScreen() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
-
-  // If the user is a parent type, render the Parent Dashboard instead
-  const isParent = PARENT_ACCOUNT_TYPES.includes(user?.account_type ?? "");
-  if (isParent) {
-    return <ParentDashboard />;
-  }
-
   const netInfo = useNetInfo();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -73,6 +66,12 @@ export default function HomeScreen() {
   >([]);
   const [quizHistory, setQuizHistory] = useState<QuizHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const isParent = PARENT_ACCOUNT_TYPES.includes(user?.account_type ?? "");
+
+  if (isParent) {
+    return <ParentDashboard />;
+  }
 
   const loadDashboard = async (): Promise<void> => {
     try {
@@ -94,19 +93,31 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const initDashboard = async () => {
       setIsLoading(true);
       await Promise.all([
         loadDashboard(),
         refreshUser().catch(() => undefined),
       ]);
-      setIsLoading(false);
+
+      if (!cancelled) {
+        setIsLoading(false);
+      }
     };
+
     initDashboard().catch((error) => {
       console.warn("Failed to load home dashboard", error);
-      setIsLoading(false);
+      if (!cancelled) {
+        setIsLoading(false);
+      }
     });
-  }, [refreshUser]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Auto-refresh when connection is restored
   useEffect(() => {

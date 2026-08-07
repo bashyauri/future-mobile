@@ -16,7 +16,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function PricingScreen() {
   const router = useRouter();
-  const { user, updateUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -27,6 +27,7 @@ export default function PricingScreen() {
 
   const studentId = params.studentId ? parseInt(params.studentId as string, 10) : null;
   const isParent = user?.account_type === 'guardian' || user?.account_type === 'school' || user?.account_type === 'community';
+  const isAlreadySubscribed = user?.has_active_subscription === true;
 
   useEffect(() => {
     fetchPricing();
@@ -76,9 +77,14 @@ export default function PricingScreen() {
       );
 
       if (authResult.type === "success") {
-        // Expo linking parsed the return URL successfully
-        // The URL should contain ?reference=XYZ but we can also just use the one we got from init
-        await verifyPayment(reference);
+        const callbackUrl = authResult.url ?? "";
+        const parsedUrl = callbackUrl ? Linking.parse(callbackUrl) : null;
+        const referenceFromUrl =
+          typeof parsedUrl?.queryParams?.reference === "string"
+            ? parsedUrl.queryParams.reference
+            : null;
+
+        await verifyPayment(referenceFromUrl || reference);
       } else {
         // If they just closed the browser (authResult.type === "cancel")
         // We can optionally verify anyway just in case the webhook fired and payment actually succeeded,
@@ -96,11 +102,12 @@ export default function PricingScreen() {
 
   const verifyPayment = async (reference: string) => {
     try {
-      setSubscribingTo("verify"); // Shows loading state
-      const res = await api.post("/payment/verify", { reference });
-      
+      setSubscribingTo("verify");
+      await api.post("/payment/verify", { reference });
+
+      await refreshUser();
       Alert.alert("Success", "Your subscription is now active!");
-      router.back();
+      router.replace("/(tabs)");
     } catch (e: any) {
       console.warn("Payment verify error:", e);
       Alert.alert("Payment Failed", e.response?.data?.message || "Payment verification failed.");
@@ -108,6 +115,48 @@ export default function PricingScreen() {
       setSubscribingTo(null);
     }
   };
+
+  if (isAlreadySubscribed) {
+    return (
+      <View className="flex-1 bg-neutral-50 dark:bg-neutral-950">
+        <View className="pt-16 pb-4 px-4 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex-row items-center">
+          <Button
+            variant="ghost"
+            onPress={() => router.back()}
+            className="mr-2"
+            accessibilityLabel="Go back"
+          >
+            <MaterialIcons
+              name="arrow-back"
+              size={24}
+              color={isDark ? "#fff" : "#171717"}
+            />
+          </Button>
+          <Heading size="lg">Subscription Plans</Heading>
+        </View>
+
+        <View className="flex-1 items-center justify-center px-6">
+          <View className="bg-white dark:bg-neutral-900 rounded-2xl border border-green-200 dark:border-green-800 p-8 items-center w-full">
+            <MaterialIcons name="check-circle" size={56} color="#22c55e" />
+            <Heading size="lg" className="mt-4 text-center">
+              You're already subscribed!
+            </Heading>
+            <BodyText className="mt-2 text-center text-neutral-500 dark:text-neutral-400">
+              You have full access to all premium features. Enjoy your learning journey.
+            </BodyText>
+            <Button
+              variant="primary"
+              fullWidth
+              className="mt-6"
+              onPress={() => router.replace("/(tabs)")}
+            >
+              Go to Dashboard
+            </Button>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-neutral-50 dark:bg-neutral-950">
@@ -164,7 +213,7 @@ export default function PricingScreen() {
                 
                 <Subheading size="xl" className="capitalize mb-1">{key}</Subheading>
                 <Heading size="2xl" className="mb-4">
-                  ₦{(plan.amount / 100).toLocaleString()}
+                  ₦{plan.amount.toLocaleString()}
                   <Caption> / {key === 'monthly' ? 'month' : 'year'}</Caption>
                 </Heading>
                 
