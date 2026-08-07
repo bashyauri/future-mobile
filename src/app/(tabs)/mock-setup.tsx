@@ -246,6 +246,10 @@ export default function MockSetupScreen() {
     );
   }
 
+  if (!isAllowed) {
+    return <SubscriptionGuardView featureName="Mock Exams" />;
+  }
+
   if (error) {
     return (
       <View className="flex-1 items-center justify-center bg-neutral-50 dark:bg-neutral-950 px-8">

@@ -38,7 +38,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   logout: async () => {},
   updateUser: () => {},
-  refreshUser: async () => {},
+  refreshUser: async () => null,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -87,16 +87,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return finalUser;
     } catch (error) {
       console.log("Auth refresh failed:", error);
-      const existingUser = user;
 
-      if (!existingUser) {
-        await storage.deleteItem("auth_token");
-        setUser(null);
-      }
+      setUser((prevUser) => {
+        if (!prevUser) {
+          storage.deleteItem("auth_token").catch(() => {});
+          return null;
+        }
+        return prevUser;
+      });
 
       throw error;
     }
-  }, [normalizeUser, user]);
+  }, [normalizeUser]);
 
   useEffect(() => {
     let cancelled = false;

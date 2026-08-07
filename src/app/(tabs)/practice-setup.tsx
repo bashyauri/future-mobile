@@ -17,7 +17,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { useSubscriptionGuard } from "@/lib/useSubscriptionGuard";
+import { useSubscriptionGuard, SubscriptionGuardView } from "@/lib/useSubscriptionGuard";
 import { Card, Button } from "@/components";
 import {
   Heading,
@@ -149,7 +149,7 @@ export default function PracticeSetupScreen() {
   >(null);
   const [isLoadingQuestionCount, setIsLoadingQuestionCount] = useState(false);
 
-  // Gate: redirect to /pricing if user has no paid subscription (practice is paid-only, trial users cannot access).
+  // Gate: show SubscriptionGuardView if user has no paid subscription (practice is paid-only, trial users cannot access).
   const { isAllowed } = useSubscriptionGuard({ requirePaidOnly: true });
 
   const loadYears = async (subjectId?: number, examTypeId?: number) => {
@@ -534,6 +534,10 @@ export default function PracticeSetupScreen() {
         </BodyText>
       </View>
     );
+  }
+
+  if (!isAllowed) {
+    return <SubscriptionGuardView featureName="Practice Mode" />;
   }
 
   if (error) {

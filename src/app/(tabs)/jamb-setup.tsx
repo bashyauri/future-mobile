@@ -13,7 +13,7 @@ import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNetInfo } from "@react-native-community/netinfo";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
-import { useSubscriptionGuard } from "@/lib/useSubscriptionGuard";
+import { useSubscriptionGuard, SubscriptionGuardView } from "@/lib/useSubscriptionGuard";
 import { Card, Button } from "@/components";
 import {
   Heading,
@@ -148,7 +148,6 @@ export default function JambSetupScreen() {
     null,
   );
 
-  // Gate: redirect to /pricing if user has no paid subscription (JAMB is paid-only, trial users cannot access).
   const { isAllowed } = useSubscriptionGuard({ requirePaidOnly: true });
 
   useEffect(() => {
@@ -369,6 +368,10 @@ export default function JambSetupScreen() {
         </BodyText>
       </View>
     );
+  }
+
+  if (!isAllowed) {
+    return <SubscriptionGuardView featureName="JAMB Exams" />;
   }
 
   if (error) {
