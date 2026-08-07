@@ -56,7 +56,7 @@ type Subject = {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   // If the user is a parent type, render the Parent Dashboard instead
   const isParent = PARENT_ACCOUNT_TYPES.includes(user?.account_type ?? "");
@@ -68,18 +68,21 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null);
-  const [subjectPerformance, setSubjectPerformance] = useState<SubjectPerformance[]>([]);
+  const [subjectPerformance, setSubjectPerformance] = useState<
+    SubjectPerformance[]
+  >([]);
   const [quizHistory, setQuizHistory] = useState<QuizHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadDashboard = async (): Promise<void> => {
     try {
-      const [subjectsRes, analyticsRes, subjectPerfRes, historyRes] = await Promise.all([
-        api.get("/subjects"),
-        api.get("/analytics/overview"),
-        api.get("/analytics/subject-performance"),
-        api.get("/analytics/quiz-history?limit=5"),
-      ]);
+      const [subjectsRes, analyticsRes, subjectPerfRes, historyRes] =
+        await Promise.all([
+          api.get("/subjects"),
+          api.get("/analytics/overview"),
+          api.get("/analytics/subject-performance"),
+          api.get("/analytics/quiz-history?limit=5"),
+        ]);
 
       setSubjects(subjectsRes.data?.data ?? subjectsRes.data ?? []);
       setAnalytics(analyticsRes.data?.data ?? null);
@@ -93,14 +96,17 @@ export default function HomeScreen() {
   useEffect(() => {
     const initDashboard = async () => {
       setIsLoading(true);
-      await loadDashboard();
+      await Promise.all([
+        loadDashboard(),
+        refreshUser().catch(() => undefined),
+      ]);
       setIsLoading(false);
     };
     initDashboard().catch((error) => {
       console.warn("Failed to load home dashboard", error);
       setIsLoading(false);
     });
-  }, []);
+  }, [refreshUser]);
 
   // Auto-refresh when connection is restored
   useEffect(() => {
@@ -125,7 +131,43 @@ export default function HomeScreen() {
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const getTrialSummary = () => {
+    if (!user?.trial_ends_at) {
+      return null;
+    }
+
+    const endsAt = new Date(user.trial_ends_at);
+    const now = new Date();
+    const diffMs = endsAt.getTime() - now.getTime();
+
+    if (diffMs <= 0) {
+      return {
+        label: "Your trial has ended.",
+        detail: "Upgrade to continue using premium content.",
+      };
+    }
+
+    const totalHours = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60)));
+    const daysLeft = Math.max(0, Math.floor(totalHours / 24));
+    const hoursLeft = totalHours % 24;
+
+    if (daysLeft > 0) {
+      return {
+        label: `Trial ends in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
+        detail:
+          hoursLeft > 0
+            ? `About ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"} remaining.`
+            : "Less than a day remaining.",
+      };
+    }
+
+    return {
+      label: `Trial ends in ${hoursLeft} hour${hoursLeft === 1 ? "" : "s"}.`,
+      detail: "Upgrade soon to keep access.",
+    };
   };
 
   const formatTime = (seconds: number): string => {
@@ -171,15 +213,24 @@ export default function HomeScreen() {
               <CardSkeleton />
             </View>
             <View className="flex-row justify-between mb-4">
-              <Card variant="bordered" className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4">
+              <Card
+                variant="bordered"
+                className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
+              >
                 <View className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 mb-2" />
                 <View className="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded" />
               </Card>
-              <Card variant="bordered" className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4">
+              <Card
+                variant="bordered"
+                className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
+              >
                 <View className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 mb-2" />
                 <View className="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded" />
               </Card>
-              <Card variant="bordered" className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4">
+              <Card
+                variant="bordered"
+                className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
+              >
                 <View className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 mb-2" />
                 <View className="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded" />
               </Card>
@@ -205,14 +256,32 @@ export default function HomeScreen() {
                 className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-xl p-4 mb-5 flex-row items-center"
               >
                 <View className="bg-primary-100 dark:bg-primary-900/50 p-2 rounded-full mr-3">
-                  <MaterialIcons name="workspace-premium" size={24} color="#3b82f6" />
+                  <MaterialIcons
+                    name="workspace-premium"
+                    size={24}
+                    color="#3b82f6"
+                  />
                 </View>
                 <View className="flex-1">
-                  <Subheading size="sm" className="text-primary-800 dark:text-primary-300">
-                    Unlock Full Access
+                  <Subheading
+                    size="sm"
+                    className="text-primary-800 dark:text-primary-300"
+                  >
+                    {user?.on_trial
+                      ? "Your Trial is Active"
+                      : "Unlock Full Access"}
                   </Subheading>
                   <Caption className="text-primary-700 dark:text-primary-400 mt-0.5">
-                    Subscribe to access all premium features and analytics
+                    {(() => {
+                      const trialSummary = getTrialSummary();
+                      if (trialSummary) {
+                        return `${trialSummary.label} ${trialSummary.detail}`;
+                      }
+
+                      return user?.on_trial
+                        ? "You can still access the free lesson and quiz experience during your trial."
+                        : "Subscribe to access all premium features and analytics";
+                    })()}
                   </Caption>
                 </View>
                 <MaterialIcons name="chevron-right" size={24} color="#3b82f6" />
@@ -229,7 +298,10 @@ export default function HomeScreen() {
                 activeOpacity={0.8}
                 className="w-[48%] mb-4"
               >
-                <Card variant="bordered" className="bg-white dark:bg-neutral-900">
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900"
+                >
                   <View className="w-11 h-11 rounded-xl bg-orange-100 dark:bg-orange-900/30 items-center justify-center mb-3">
                     <MaterialIcons name="menu-book" size={22} color="#ea580c" />
                   </View>
@@ -245,9 +317,16 @@ export default function HomeScreen() {
                 activeOpacity={0.8}
                 className="w-[48%] mb-4"
               >
-                <Card variant="bordered" className="bg-white dark:bg-neutral-900">
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900"
+                >
                   <View className="w-11 h-11 rounded-xl bg-blue-100 dark:bg-blue-900/30 items-center justify-center mb-3">
-                    <MaterialIcons name="auto-stories" size={22} color="#2563eb" />
+                    <MaterialIcons
+                      name="auto-stories"
+                      size={22}
+                      color="#2563eb"
+                    />
                   </View>
                   <Subheading size="md">JAMB</Subheading>
                   <Caption className="mt-1 text-neutral-500 dark:text-neutral-400">
@@ -261,7 +340,10 @@ export default function HomeScreen() {
                 activeOpacity={0.8}
                 className="w-[48%] mb-4"
               >
-                <Card variant="bordered" className="bg-white dark:bg-neutral-900">
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900"
+                >
                   <View className="w-11 h-11 rounded-xl bg-purple-100 dark:bg-purple-900/30 items-center justify-center mb-3">
                     <MaterialIcons name="timer" size={22} color="#7c3aed" />
                   </View>
@@ -277,9 +359,16 @@ export default function HomeScreen() {
                 activeOpacity={0.8}
                 className="w-[48%] mb-4"
               >
-                <Card variant="bordered" className="bg-white dark:bg-neutral-900">
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900"
+                >
                   <View className="w-11 h-11 rounded-xl bg-green-100 dark:bg-green-900/30 items-center justify-center mb-3">
-                    <MaterialIcons name="play-circle" size={22} color="#16a34a" />
+                    <MaterialIcons
+                      name="play-circle"
+                      size={22}
+                      color="#16a34a"
+                    />
                   </View>
                   <Subheading size="md">Lessons</Subheading>
                   <Caption className="mt-1 text-neutral-500 dark:text-neutral-400">
@@ -293,7 +382,10 @@ export default function HomeScreen() {
                 activeOpacity={0.8}
                 className="w-[48%] mb-4"
               >
-                <Card variant="bordered" className="bg-white dark:bg-neutral-900">
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900"
+                >
                   <View className="w-11 h-11 rounded-xl bg-neutral-200 dark:bg-neutral-800 items-center justify-center mb-3">
                     <MaterialIcons name="settings" size={22} color="#52525b" />
                   </View>
@@ -341,7 +433,9 @@ export default function HomeScreen() {
                 >
                   {analytics?.total_quizzes ?? 0}
                 </Heading>
-                <Caption className="text-neutral-500 text-center">Quizzes</Caption>
+                <Caption className="text-neutral-500 text-center">
+                  Quizzes
+                </Caption>
               </Card>
 
               <Card
@@ -363,7 +457,10 @@ export default function HomeScreen() {
               </Card>
             </View>
 
-            <Card variant="bordered" className="mt-2 bg-white dark:bg-neutral-900">
+            <Card
+              variant="bordered"
+              className="mt-2 bg-white dark:bg-neutral-900"
+            >
               <View className="flex-row items-center justify-between mb-3">
                 <Subheading size="md">My Subjects</Subheading>
                 <Caption className="text-neutral-500 dark:text-neutral-400">
@@ -394,7 +491,10 @@ export default function HomeScreen() {
 
             {/* Subject Performance */}
             {subjectPerformance && subjectPerformance.length > 0 && (
-              <Card variant="bordered" className="mt-4 bg-white dark:bg-neutral-900">
+              <Card
+                variant="bordered"
+                className="mt-4 bg-white dark:bg-neutral-900"
+              >
                 <View className="flex-row items-center justify-between mb-3">
                   <Subheading size="md">Subject Performance</Subheading>
                   <Caption className="text-neutral-500 dark:text-neutral-400">
@@ -409,17 +509,25 @@ export default function HomeScreen() {
                       className="border-b border-neutral-100 dark:border-neutral-800 pb-3 last:border-0 last:pb-0"
                     >
                       <View className="flex-row items-center justify-between mb-2">
-                        <BodyText className="font-semibold">{perf.subject_name || 'Unknown Subject'}</BodyText>
+                        <BodyText className="font-semibold">
+                          {perf.subject_name || "Unknown Subject"}
+                        </BodyText>
                         <Caption className="text-primary-600 dark:text-primary-400">
-                          {perf.average_score != null ? Math.round(Number(perf.average_score)) + '%' : 'N/A'}
+                          {perf.average_score != null
+                            ? Math.round(Number(perf.average_score)) + "%"
+                            : "N/A"}
                         </Caption>
                       </View>
                       <View className="flex-row items-center justify-between">
                         <Caption className="text-neutral-500 dark:text-neutral-400">
-                          {perf.total_attempts || 0} attempts • {formatTime(perf.total_time_spent_seconds ?? 0)}
+                          {perf.total_attempts || 0} attempts •{" "}
+                          {formatTime(perf.total_time_spent_seconds ?? 0)}
                         </Caption>
                         <Caption className="text-green-600 dark:text-green-400">
-                          Best: {perf.best_score ? Math.round(perf.best_score) + '%' : 'N/A'}
+                          Best:{" "}
+                          {perf.best_score
+                            ? Math.round(perf.best_score) + "%"
+                            : "N/A"}
                         </Caption>
                       </View>
                     </View>
@@ -430,7 +538,10 @@ export default function HomeScreen() {
 
             {/* Recent Quiz History */}
             {quizHistory && quizHistory.length > 0 && (
-              <Card variant="bordered" className="mt-4 bg-white dark:bg-neutral-900">
+              <Card
+                variant="bordered"
+                className="mt-4 bg-white dark:bg-neutral-900"
+              >
                 <View className="flex-row items-center justify-between mb-3">
                   <Subheading size="md">Recent Activity</Subheading>
                   <Caption className="text-neutral-500 dark:text-neutral-400">
@@ -445,9 +556,14 @@ export default function HomeScreen() {
                       className="flex-row items-center justify-between py-2 border-b border-neutral-100 dark:border-neutral-800 last:border-0"
                     >
                       <View className="flex-1">
-                        <BodyText className="text-sm">{quiz.subject_name || 'Unknown Subject'}</BodyText>
+                        <BodyText className="text-sm">
+                          {quiz.subject_name || "Unknown Subject"}
+                        </BodyText>
                         <Caption className="text-neutral-500 dark:text-neutral-400">
-                          {quiz.quiz_type || 'Quiz'} • {quiz.completed_at ? formatDate(quiz.completed_at) : 'N/A'}
+                          {quiz.quiz_type || "Quiz"} •{" "}
+                          {quiz.completed_at
+                            ? formatDate(quiz.completed_at)
+                            : "N/A"}
                         </Caption>
                       </View>
                       <View className="items-end">
@@ -456,11 +572,13 @@ export default function HomeScreen() {
                             quiz.score >= 70
                               ? "text-green-600 dark:text-green-400"
                               : quiz.score >= 50
-                              ? "text-yellow-600 dark:text-yellow-400"
-                              : "text-red-600 dark:text-red-400"
+                                ? "text-yellow-600 dark:text-yellow-400"
+                                : "text-red-600 dark:text-red-400"
                           }
                         >
-                          {quiz.score != null ? Math.round(Number(quiz.score)) + '%' : 'N/A'}
+                          {quiz.score != null
+                            ? Math.round(Number(quiz.score)) + "%"
+                            : "N/A"}
                         </Caption>
                         <Caption className="text-neutral-500 dark:text-neutral-400">
                           {quiz.total_questions || 0} questions
@@ -479,6 +597,3 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-
-

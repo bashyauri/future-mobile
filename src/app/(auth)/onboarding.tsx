@@ -40,8 +40,6 @@ type StreamOption = {
   name: string;
   description?: string | null;
   icon?: string | null;
-  default_subject_ids: number[];
-  default_subject_names: string[];
 };
 
 export default function OnboardingScreen() {
@@ -58,12 +56,8 @@ export default function OnboardingScreen() {
   const isDark = theme === "dark";
 
   const [loading, setLoading] = useState(false);
-  const [fetchingSubjects, setFetchingSubjects] = useState(true);
-  const [fetchingExamTypes, setFetchingExamTypes] = useState(true);
-  const [fetchingStreams, setFetchingStreams] = useState(true);
-  const [streamError, setStreamError] = useState<string | null>(null);
-  const [subjectError, setSubjectError] = useState<string | null>(null);
-  const [examTypeError, setExamTypeError] = useState<string | null>(null);
+  const [bootstrapLoading, setBootstrapLoading] = useState(true);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
   const [streams, setStreams] = useState<StreamOption[]>([]);
@@ -74,84 +68,29 @@ export default function OnboardingScreen() {
   const [selectedExamTypes, setSelectedExamTypes] = useState<number[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
 
-  const selectedStreamConfig = streams.find(
-    (stream) => stream.slug === selectedStream,
-  );
+  const availableSubjects = subjects;
 
-  const fallbackSubjects: Subject[] =
-    selectedStreamConfig?.default_subject_ids.map((subjectId, index) => ({
-      id: subjectId,
-      name:
-        selectedStreamConfig.default_subject_names[index] ||
-        `Subject ${subjectId}`,
-      code: "",
-    })) ?? [];
-
-  const availableSubjects = subjects.length > 0 ? subjects : fallbackSubjects;
-
-  const loadStreams = async () => {
+  const loadBootstrap = async () => {
     try {
-      setFetchingStreams(true);
-      setStreamError(null);
-      const response = await api.get("/config/streams");
-      const streamsData = Array.isArray(response.data)
-        ? response.data
-        : response.data?.data || [];
-      setStreams(streamsData);
+      setBootstrapLoading(true);
+      setBootstrapError(null);
+      const response = await api.get("/onboarding/bootstrap");
+      const payload = response.data?.data ?? response.data ?? {};
+      setStreams(Array.isArray(payload.streams) ? payload.streams : []);
+      setExamTypes(Array.isArray(payload.exam_types) ? payload.exam_types : []);
+      setSubjects(Array.isArray(payload.subjects) ? payload.subjects : []);
     } catch (error) {
-      console.log("Error fetching streams:", error);
-      setStreamError("Could not load streams. Please check your connection.");
-    } finally {
-      setFetchingStreams(false);
-    }
-  };
-
-  useEffect(() => {
-    loadStreams();
-  }, []);
-
-  const loadExamTypes = async () => {
-    try {
-      setFetchingExamTypes(true);
-      setExamTypeError(null);
-      const response = await api.get("/config/exam-types");
-      const examTypesData = Array.isArray(response.data)
-        ? response.data
-        : response.data?.data || [];
-      setExamTypes(examTypesData);
-    } catch (error) {
-      console.log("Error fetching exam types:", error);
-      setExamTypeError(
-        "Could not load exam types. Please check your connection.",
+      console.log("Error fetching onboarding bootstrap data:", error);
+      setBootstrapError(
+        "Could not load setup data. Please check your connection.",
       );
     } finally {
-      setFetchingExamTypes(false);
-    }
-  };
-
-  // Load exam types on mount
-  useEffect(() => {
-    loadExamTypes();
-  }, []);
-  const loadSubjects = async () => {
-    try {
-      setFetchingSubjects(true);
-      setSubjectError(null);
-      const response = await api.get("/config/subjects");
-      const subjectsData = Array.isArray(response.data)
-        ? response.data
-        : response.data?.data || [];
-      setSubjects(subjectsData);
-    } catch (error) {
-      console.log("Error fetching subjects:", error);
-      setSubjectError("Could not load subjects. Please check your connection.");
-    } finally {
-      setFetchingSubjects(false);
+      setBootstrapLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSubjects();
+    loadBootstrap();
   }, []);
 
   const toggleExamType = (id: number) => {
@@ -188,10 +127,18 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handlePrevious = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+  const handleBack = () => {
+    if (currentStep === 1) {
+      router.back();
+      return;
     }
+
+    if (currentStep === 3 && selectedStream === "custom") {
+      setCurrentStep(1);
+      return;
+    }
+
+    setCurrentStep(currentStep - 1);
   };
 
   const handleComplete = async () => {
@@ -202,26 +149,13 @@ export default function OnboardingScreen() {
 
     setLoading(true);
     try {
-      const streamSubjectIds = selectedStreamConfig?.default_subject_ids ?? [];
-
-      const finalSubjectIds =
-        selectedSubjects.length > 0 ? selectedSubjects : streamSubjectIds;
       const finalStreamValue = selectedStream || "manual";
-
-      if (finalSubjectIds.length === 0) {
-        Alert.alert(
-          "Selection Required",
-          "No matching subjects were found for your selection. Please choose subjects manually.",
-        );
-        setLoading(false);
-        return;
-      }
 
       // Save onboarding data via API
       await api.post("/onboarding", {
         stream: finalStreamValue,
         exam_types: selectedExamTypes,
-        subjects: finalSubjectIds,
+        subjects: selectedSubjects,
       });
 
       // Update auth context with new flag
@@ -264,31 +198,27 @@ export default function OnboardingScreen() {
         className="px-6 pb-4"
         style={{ paddingTop: Math.max(insets.top, 12) + 12 }}
       >
-        {currentStep > 1 && (
-          <Button
-            variant="ghost"
-            onPress={
-              currentStep === 3 && selectedStream === "custom"
-                ? () => setCurrentStep(1)
-                : handlePrevious
-            }
-            className="self-start mb-4"
-            accessibilityLabel="Go to previous onboarding step"
-          >
-            <View className="flex-row items-center gap-2">
-              <MaterialIcons
-                name="arrow-back"
-                size={18}
-                color={isDark ? "#fff" : "#171717"}
-              />
-              <BodyText>
-                {currentStep === 3 && selectedStream === "custom"
+        <Button
+          variant="ghost"
+          onPress={handleBack}
+          className="self-start mb-4"
+          accessibilityLabel="Go back"
+        >
+          <View className="flex-row items-center gap-2">
+            <MaterialIcons
+              name="arrow-back"
+              size={18}
+              color={isDark ? "#fff" : "#171717"}
+            />
+            <BodyText>
+              {currentStep === 1
+                ? "Back"
+                : currentStep === 3 && selectedStream === "custom"
                   ? "Back to Streams"
                   : "Previous"}
-              </BodyText>
-            </View>
-          </Button>
-        )}
+            </BodyText>
+          </View>
+        </Button>
         <View className="w-14 h-14 rounded-2xl bg-primary-100 dark:bg-primary-900/30 items-center justify-center mb-4">
           <MaterialIcons name="auto-awesome" size={28} color="#4f46e5" />
         </View>
@@ -321,23 +251,23 @@ export default function OnboardingScreen() {
       >
         {/* Step 1: Select Stream */}
         {currentStep === 1 && (
-          <View className="space-y-4 pt-2 pb-8">
-            {fetchingStreams ? (
+          <View className="flex gap-4 pt-2 pb-8">
+            {bootstrapLoading ? (
               <View className="py-10 items-center justify-center">
                 <ActivityIndicator size="large" color="#4f46e5" />
                 <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">
-                  Loading streams...
+                  Loading setup data...
                 </BodyText>
               </View>
-            ) : streamError ? (
+            ) : bootstrapError ? (
               <View className="py-10 items-center justify-center">
                 <BodyText className="text-center text-red-600 dark:text-red-400">
-                  {streamError}
+                  {bootstrapError}
                 </BodyText>
                 <Button
                   variant="outline"
                   className="mt-4"
-                  onPress={loadStreams}
+                  onPress={loadBootstrap}
                 >
                   Retry
                 </Button>
@@ -359,16 +289,14 @@ export default function OnboardingScreen() {
                   onPress={() => handleStreamSelect(stream.slug)}
                   className={
                     selectedStream === stream.slug
-                      ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10"
-                      : ""
+                      ? "mb-3 border-primary-500 bg-primary-50 dark:bg-primary-900/10"
+                      : "mb-3"
                   }
                 >
                   <View className="flex-row items-start space-x-4">
-                    <MaterialIcons
-                      name={(stream.icon as any) || "school"}
-                      size={28}
-                      color={isDark ? "#a1a1aa" : "#71717a"}
-                    />
+                    <BodyText className="text-4xl flex-shrink-0">
+                      {stream.icon || "📘"}
+                    </BodyText>
                     <View className="flex-1">
                       <Subheading
                         size="lg"
@@ -392,21 +320,6 @@ export default function OnboardingScreen() {
                       )}
                     </View>
                   </View>
-                  <View className="flex-row flex-wrap gap-2 mt-4">
-                    {(stream.default_subject_names || []).map((sub) => (
-                      <View
-                        key={sub}
-                        className="bg-white dark:bg-neutral-800 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
-                      >
-                        <BodyText
-                          size="xs"
-                          className="text-neutral-600 dark:text-neutral-300"
-                        >
-                          {sub}
-                        </BodyText>
-                      </View>
-                    ))}
-                  </View>
                 </Card>
               ))
             )}
@@ -416,7 +329,7 @@ export default function OnboardingScreen() {
               variant="outlined"
               padding="md"
               onPress={() => handleStreamSelect("custom")}
-              className={`border-purple-200 dark:border-purple-800 ${selectedStream === "custom" ? "border-purple-500" : ""}`}
+              className={`mb-3 border-purple-200 dark:border-purple-800 ${selectedStream === "custom" ? "border-purple-500" : ""}`}
             >
               <View className="flex-row items-start space-x-4">
                 <MaterialIcons name="tune" size={28} color="#a855f7" />
@@ -450,22 +363,25 @@ export default function OnboardingScreen() {
         {/* Step 2: Select Exam Type */}
         {currentStep === 2 && (
           <View className="space-y-3 pt-2 pb-8">
-            {fetchingExamTypes ? (
+            <BodyText className="text-sm text-neutral-600 dark:text-neutral-400 mb-1">
+              Tap a selected exam type again to uncheck it.
+            </BodyText>
+            {bootstrapLoading ? (
               <View className="py-10 items-center justify-center">
                 <ActivityIndicator size="large" color="#4f46e5" />
                 <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">
-                  Loading exam types...
+                  Loading setup data...
                 </BodyText>
               </View>
-            ) : examTypeError ? (
+            ) : bootstrapError ? (
               <View className="py-10 items-center justify-center">
                 <BodyText className="text-center text-red-600 dark:text-red-400">
-                  {examTypeError}
+                  {bootstrapError}
                 </BodyText>
                 <Button
                   variant="outline"
                   className="mt-4"
-                  onPress={loadExamTypes}
+                  onPress={loadBootstrap}
                 >
                   Retry
                 </Button>
@@ -478,7 +394,7 @@ export default function OnboardingScreen() {
                 <Button
                   variant="outline"
                   className="mt-4"
-                  onPress={loadExamTypes}
+                  onPress={loadBootstrap}
                 >
                   Refresh
                 </Button>
@@ -535,22 +451,66 @@ export default function OnboardingScreen() {
               </BodyText>
             </View>
 
-            {fetchingSubjects ? (
+            <BodyText className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+              Tap a selected subject again to uncheck it.
+            </BodyText>
+
+            {selectedSubjects.length > 0 && (
+              <View className="flex-row flex-wrap gap-2 mb-4">
+                {selectedSubjects.map((subjectId) => {
+                  const subject = subjects.find(
+                    (item) => item.id === subjectId,
+                  );
+
+                  return (
+                    <Button
+                      key={subjectId}
+                      variant="outline"
+                      size="sm"
+                      onPress={() => toggleSubject(subjectId)}
+                      className="rounded-full"
+                    >
+                      <View className="flex-row items-center gap-2">
+                        <BodyText className="text-sm">
+                          {subject?.name || `Subject ${subjectId}`}
+                        </BodyText>
+                        <MaterialIcons
+                          name="close"
+                          size={16}
+                          color={isDark ? "#fff" : "#171717"}
+                        />
+                      </View>
+                    </Button>
+                  );
+                })}
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => setSelectedSubjects([])}
+                  className="rounded-full"
+                >
+                  Clear all
+                </Button>
+              </View>
+            )}
+
+            {bootstrapLoading ? (
               <View className="py-10 items-center justify-center">
                 <ActivityIndicator size="large" color="#4f46e5" />
                 <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">
-                  Loading subjects...
+                  Loading setup data...
                 </BodyText>
               </View>
-            ) : subjectError && availableSubjects.length === 0 ? (
+            ) : bootstrapError && availableSubjects.length === 0 ? (
               <View className="py-10 items-center justify-center">
                 <BodyText className="text-center text-red-600 dark:text-red-400 mt-4">
-                  {subjectError}
+                  {bootstrapError}
                 </BodyText>
                 <Button
                   variant="outline"
                   className="mt-4"
-                  onPress={loadSubjects}
+                  onPress={loadBootstrap}
                 >
                   Retry
                 </Button>
@@ -611,43 +571,14 @@ export default function OnboardingScreen() {
                 </BodyText>
               </View>
             )}
-          </View>
-        )}
-      </ScrollView>
 
-      {currentStep > 1 && (
-        <View
-          className="px-6 py-4 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-900"
-          style={{ paddingBottom: Math.max(insets.bottom, 12) }}
-        >
-          {currentStep === 2 ? (
-            <View className="flex gap-3">
-              <Button
-                variant="outline"
-                size="lg"
-                className="flex-1"
-                onPress={handlePrevious}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                className="flex-1"
-                onPress={handleNext}
-                disabled={selectedExamTypes.length === 0}
-              >
-                Next: Choose Subjects
-              </Button>
-            </View>
-          ) : (
-            <View className="flex gap-3">
+            <View className="mt-6 flex gap-3">
               {selectedStream !== "custom" ? (
                 <Button
                   variant="outline"
                   size="lg"
-                  className="flex-1"
-                  onPress={handlePrevious}
+                  className="w-full"
+                  onPress={handleBack}
                 >
                   Previous
                 </Button>
@@ -655,8 +586,8 @@ export default function OnboardingScreen() {
                 <Button
                   variant="outline"
                   size="lg"
-                  className="flex-1"
-                  onPress={() => setCurrentStep(1)}
+                  className="w-full"
+                  onPress={handleBack}
                 >
                   Back to Streams
                 </Button>
@@ -664,7 +595,7 @@ export default function OnboardingScreen() {
               <Button
                 variant="primary"
                 size="lg"
-                className="flex-1"
+                className="w-full"
                 onPress={handleComplete}
                 disabled={selectedSubjects.length === 0 || loading}
                 loading={loading}
@@ -672,7 +603,34 @@ export default function OnboardingScreen() {
                 Complete Setup
               </Button>
             </View>
-          )}
+          </View>
+        )}
+      </ScrollView>
+
+      {currentStep === 2 && (
+        <View
+          className="px-6 py-4 bg-white dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-900"
+          style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+        >
+          <View className="flex gap-3">
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full"
+              onPress={handleBack}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onPress={handleNext}
+              disabled={selectedExamTypes.length === 0}
+            >
+              Next: Choose Subjects
+            </Button>
+          </View>
         </View>
       )}
     </SafeAreaView>

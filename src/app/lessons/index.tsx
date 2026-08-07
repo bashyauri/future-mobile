@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 import { Heading, BodyText, Caption } from "@/components/Typography";
 import { Button } from "@/components";
 import api from "@/lib/api";
@@ -45,6 +46,7 @@ export default function LessonsScreen() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const router = useRouter();
+  const { user, refreshUser } = useAuth();
   const insets = useSafeAreaInsets();
   const { subjectId } = useLocalSearchParams<{ subjectId: string }>();
 
@@ -55,6 +57,35 @@ export default function LessonsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [showAllSubjects, setShowAllSubjects] = useState(!subjectId);
+
+  useEffect(() => {
+    const syncEntitlementState = async () => {
+      try {
+        await refreshUser();
+      } catch (error) {
+        console.warn("Failed to refresh entitlement state", error);
+      }
+    };
+
+    void syncEntitlementState();
+  }, [refreshUser]);
+
+  useEffect(() => {
+    const hasEntitlement = user?.has_active_subscription;
+    const isOnTrial = user?.on_trial === true;
+    const trialEnded = Boolean(
+      user?.trial_ends_at &&
+      new Date(user.trial_ends_at).getTime() <= Date.now(),
+    );
+
+    if (user && !hasEntitlement && !isOnTrial && !trialEnded) {
+      router.replace("/pricing");
+    }
+
+    if (user && !hasEntitlement && trialEnded) {
+      router.replace("/pricing");
+    }
+  }, [user, router]);
 
   const loadLessons = async () => {
     try {
@@ -128,7 +159,9 @@ export default function LessonsScreen() {
     return (
       <View className="flex-1 items-center justify-center bg-neutral-50 dark:bg-neutral-950">
         <ActivityIndicator size="large" color="#4f46e5" />
-        <BodyText className="mt-4 text-neutral-500">Loading lessons...</BodyText>
+        <BodyText className="mt-4 text-neutral-500">
+          Loading lessons...
+        </BodyText>
       </View>
     );
   }
@@ -157,10 +190,17 @@ export default function LessonsScreen() {
       {/* Header */}
       <View
         className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800"
-        style={{ paddingTop: insets.top + 16, paddingBottom: 16, paddingHorizontal: 16 }}
+        style={{
+          paddingTop: insets.top + 16,
+          paddingBottom: 16,
+          paddingHorizontal: 16,
+        }}
       >
         <View className="flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{ marginRight: 12 }}
+          >
             <MaterialIcons
               name="arrow-back"
               size={24}
@@ -170,11 +210,16 @@ export default function LessonsScreen() {
           <View className="flex-1">
             <Heading size="lg">{subject?.name || "All Lessons"}</Heading>
             <Caption className="text-neutral-500 dark:text-neutral-400">
-              {subject ? `${lessons.length} lessons` : `${allSubjects.length} subjects`}
+              {subject
+                ? `${lessons.length} lessons`
+                : `${allSubjects.length} subjects`}
             </Caption>
           </View>
           {subject && (
-            <TouchableOpacity onPress={() => router.push("/lessons")} style={{ marginLeft: 12 }}>
+            <TouchableOpacity
+              onPress={() => router.push("/lessons")}
+              style={{ marginLeft: 12 }}
+            >
               <MaterialIcons
                 name="grid-view"
                 size={24}
@@ -202,11 +247,7 @@ export default function LessonsScreen() {
           <>
             {allSubjects.length === 0 ? (
               <View className="items-center justify-center py-16">
-                <MaterialIcons
-                  name="video-library"
-                  size={48}
-                  color="#9ca3af"
-                />
+                <MaterialIcons name="video-library" size={48} color="#9ca3af" />
                 <BodyText className="mt-4 text-neutral-500 dark:text-neutral-400">
                   No subjects available
                 </BodyText>
@@ -225,7 +266,7 @@ export default function LessonsScreen() {
                           {subj.name}
                         </BodyText>
                         <Caption className="text-neutral-500 dark:text-neutral-400">
-                          {subj.code || ''}
+                          {subj.code || ""}
                         </Caption>
                       </View>
                       <MaterialIcons
@@ -244,11 +285,7 @@ export default function LessonsScreen() {
           <>
             {lessons.length === 0 ? (
               <View className="items-center justify-center py-16">
-                <MaterialIcons
-                  name="video-library"
-                  size={48}
-                  color="#9ca3af"
-                />
+                <MaterialIcons name="video-library" size={48} color="#9ca3af" />
                 <BodyText className="mt-4 text-neutral-500 dark:text-neutral-400">
                   No lessons available for this subject
                 </BodyText>
@@ -267,7 +304,11 @@ export default function LessonsScreen() {
                           {lesson.order}. {lesson.title}
                         </BodyText>
                         {lesson.is_completed && (
-                          <MaterialIcons name="check-circle" size={20} color="#22c55e" />
+                          <MaterialIcons
+                            name="check-circle"
+                            size={20}
+                            color="#22c55e"
+                          />
                         )}
                       </View>
                       <Caption className="text-neutral-500 dark:text-neutral-400 mb-2">
@@ -282,16 +323,17 @@ export default function LessonsScreen() {
                         <Caption className="text-neutral-500 dark:text-neutral-400 ml-1">
                           {formatDuration(lesson.duration_seconds)}
                         </Caption>
-                        {lesson.progress_percentage > 0 && !lesson.is_completed && (
-                          <>
-                            <Caption className="text-neutral-500 dark:text-neutral-400 mx-2">
-                              •
-                            </Caption>
-                            <Caption className="text-primary-600 dark:text-primary-400">
-                              {lesson.progress_percentage}% complete
-                            </Caption>
-                          </>
-                        )}
+                        {lesson.progress_percentage > 0 &&
+                          !lesson.is_completed && (
+                            <>
+                              <Caption className="text-neutral-500 dark:text-neutral-400 mx-2">
+                                •
+                              </Caption>
+                              <Caption className="text-primary-600 dark:text-primary-400">
+                                {lesson.progress_percentage}% complete
+                              </Caption>
+                            </>
+                          )}
                       </View>
                     </View>
                     <MaterialIcons

@@ -21,6 +21,16 @@ function RootLayoutNav() {
       // Redirect to login if not authenticated
       router.replace("/(auth)/login");
     } else if (user) {
+      const isEmailVerified = Boolean(user.email_verified_at);
+
+      if (!isEmailVerified) {
+        if (segments[1] !== "verify-email") {
+          router.replace("/(auth)/verify-email");
+        }
+
+        return;
+      }
+
       // Parent types (guardian, school, community) bypass onboarding
       const parentTypes = ["guardian", "school", "community"];
       const isParentUser = parentTypes.includes(user.account_type ?? "");

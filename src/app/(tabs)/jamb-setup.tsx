@@ -12,6 +12,7 @@ import {
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNetInfo } from "@react-native-community/netinfo";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 import { Card, Button } from "@/components";
 import {
   Heading,
@@ -127,6 +128,7 @@ export default function JambSetupScreen() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const router = useRouter();
+  const { user, refreshUser } = useAuth();
   const netInfo = useNetInfo();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -144,6 +146,35 @@ export default function JambSetupScreen() {
   const yearSelectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+
+  useEffect(() => {
+    const syncEntitlementState = async () => {
+      try {
+        await refreshUser();
+      } catch (error) {
+        console.warn("Failed to refresh entitlement state", error);
+      }
+    };
+
+    void syncEntitlementState();
+  }, [refreshUser]);
+
+  useEffect(() => {
+    const hasEntitlement = user?.has_active_subscription;
+    const isOnTrial = user?.on_trial === true;
+    const trialEnded = Boolean(
+      user?.trial_ends_at &&
+      new Date(user.trial_ends_at).getTime() <= Date.now(),
+    );
+
+    if (user && !hasEntitlement && !isOnTrial && !trialEnded) {
+      router.replace("/pricing");
+    }
+
+    if (user && !hasEntitlement && trialEnded) {
+      router.replace("/pricing");
+    }
+  }, [user, router]);
 
   useEffect(() => {
     const fetchJambConfiguration = async () => {
@@ -293,7 +324,7 @@ export default function JambSetupScreen() {
       const parsedQuestionsPerSubject = Number(questionsPerSubjectInput);
       const questionsPerSubject =
         questionsPerSubjectInput.trim().length > 0 &&
-          Number.isFinite(parsedQuestionsPerSubject)
+        Number.isFinite(parsedQuestionsPerSubject)
           ? parsedQuestionsPerSubject
           : undefined;
       const parsedTimeLimit = Number(timeLimitInput);
@@ -344,7 +375,7 @@ export default function JambSetupScreen() {
         err?.message ||
         "Could not prepare JAMB exam.";
 
-      Alert.alert("Preparation failed", message)
+      Alert.alert("Preparation failed", message);
     } finally {
       setIsPreparing(false);
       setPrepareStatus(null);
@@ -469,10 +500,11 @@ export default function JambSetupScreen() {
                       </View>
                     ) : (
                       <View
-                        className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected
-                          ? "bg-primary-500 border-primary-500"
-                          : "border-neutral-300 dark:border-neutral-600"
-                          }`}
+                        className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
+                          isSelected
+                            ? "bg-primary-500 border-primary-500"
+                            : "border-neutral-300 dark:border-neutral-600"
+                        }`}
                       >
                         {isSelected && (
                           <MaterialIcons name="check" size={14} color="white" />

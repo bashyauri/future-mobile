@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
+import { useAuth } from "@/context/AuthContext";
 import { Card, Button } from "@/components";
 import {
   Heading,
@@ -113,6 +114,7 @@ export default function PracticeSetupScreen() {
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const router = useRouter();
+  const { user, refreshUser } = useAuth();
 
   const [examTypes, setExamTypes] = useState<ExamType[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -123,7 +125,9 @@ export default function PracticeSetupScreen() {
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [selectedYear, setSelectedYear] = useState<Year | null>(null);
   const [questionCountInput, setQuestionCountInput] = useState("");
-  const [questionCountError, setQuestionCountError] = useState<string | null>(null);
+  const [questionCountError, setQuestionCountError] = useState<string | null>(
+    null,
+  );
   const [timeLimitInput, setTimeLimitInput] = useState("");
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -143,6 +147,35 @@ export default function PracticeSetupScreen() {
     number | null
   >(null);
   const [isLoadingQuestionCount, setIsLoadingQuestionCount] = useState(false);
+
+  useEffect(() => {
+    const syncEntitlementState = async () => {
+      try {
+        await refreshUser();
+      } catch (error) {
+        console.warn("Failed to refresh entitlement state", error);
+      }
+    };
+
+    void syncEntitlementState();
+  }, [refreshUser]);
+
+  useEffect(() => {
+    const hasEntitlement = user?.has_active_subscription;
+    const isOnTrial = user?.on_trial === true;
+    const trialEnded = Boolean(
+      user?.trial_ends_at &&
+      new Date(user.trial_ends_at).getTime() <= Date.now(),
+    );
+
+    if (user && !hasEntitlement && !isOnTrial && !trialEnded) {
+      router.replace("/pricing");
+    }
+
+    if (user && !hasEntitlement && trialEnded) {
+      router.replace("/pricing");
+    }
+  }, [user, router]);
 
   const loadYears = async (subjectId?: number, examTypeId?: number) => {
     try {
@@ -755,7 +788,9 @@ export default function PracticeSetupScreen() {
                   if (text && availableQuestionCount !== null) {
                     const count = parseInt(text, 10);
                     if (count > availableQuestionCount) {
-                      setQuestionCountError(`Only ${availableQuestionCount} questions available`);
+                      setQuestionCountError(
+                        `Only ${availableQuestionCount} questions available`,
+                      );
                     } else {
                       setQuestionCountError(null);
                     }
@@ -772,18 +807,19 @@ export default function PracticeSetupScreen() {
                     : "border-neutral-300 dark:border-neutral-700"
                 } bg-white dark:bg-neutral-900`}
               />
-              {availableQuestionCount !== null && availableQuestionCount > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onPress={() => {
-                    setQuestionCountInput("");
-                    setQuestionCountError(null);
-                  }}
-                >
-                  Use All ({availableQuestionCount})
-                </Button>
-              )}
+              {availableQuestionCount !== null &&
+                availableQuestionCount > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onPress={() => {
+                      setQuestionCountInput("");
+                      setQuestionCountError(null);
+                    }}
+                  >
+                    Use All ({availableQuestionCount})
+                  </Button>
+                )}
             </View>
             {questionCountError && (
               <Caption className="text-red-600 dark:text-red-400 mb-2">
@@ -850,7 +886,8 @@ export default function PracticeSetupScreen() {
                   Shuffle Questions
                 </BodyText>
                 <Caption className="text-neutral-900">
-                  Randomize the order of questions. Answers and explanations show automatically.
+                  Randomize the order of questions. Answers and explanations
+                  show automatically.
                 </Caption>
               </View>
             </View>
