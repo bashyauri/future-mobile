@@ -149,9 +149,12 @@ export default function JambSetupScreen() {
   );
 
   // Gate: redirect to /pricing if user has no paid subscription (JAMB is paid-only, trial users cannot access).
-  useSubscriptionGuard({ requirePaidOnly: true });
+  const { isAllowed } = useSubscriptionGuard({ requirePaidOnly: true });
 
   useEffect(() => {
+    // Don't fetch data if the user isn't allowed — they'll be redirected to /pricing
+    if (!isAllowed) return;
+
     const fetchJambConfiguration = async () => {
       try {
         setIsLoading(true);
@@ -197,7 +200,7 @@ export default function JambSetupScreen() {
     };
 
     fetchJambConfiguration();
-  }, []);
+  }, [isAllowed]);
 
   const isRequired = (subject: Subject): boolean =>
     isCompulsoryEnglishSubject(subject);

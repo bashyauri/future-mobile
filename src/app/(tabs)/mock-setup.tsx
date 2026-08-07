@@ -104,10 +104,13 @@ export default function MockSetupScreen() {
   };
 
   // Gate: redirect to /pricing if user has no paid subscription (Mock exams are paid-only, trial users cannot access).
-  useSubscriptionGuard({ requirePaidOnly: true });
+  const { isAllowed } = useSubscriptionGuard({ requirePaidOnly: true });
 
   // Fetch all configuration on mount
   useEffect(() => {
+    // Don't fetch data if the user isn't allowed — they'll be redirected to /pricing
+    if (!isAllowed) return;
+
     const fetchConfig = async () => {
       try {
         setIsLoading(true);
@@ -134,7 +137,7 @@ export default function MockSetupScreen() {
       }
     };
     fetchConfig();
-  }, []);
+  }, [isAllowed]);
 
   // Auto-refresh when connection is restored
   useEffect(() => {

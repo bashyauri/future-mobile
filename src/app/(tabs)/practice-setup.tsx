@@ -150,7 +150,7 @@ export default function PracticeSetupScreen() {
   const [isLoadingQuestionCount, setIsLoadingQuestionCount] = useState(false);
 
   // Gate: redirect to /pricing if user has no paid subscription (practice is paid-only, trial users cannot access).
-  useSubscriptionGuard({ requirePaidOnly: true });
+  const { isAllowed } = useSubscriptionGuard({ requirePaidOnly: true });
 
   const loadYears = async (subjectId?: number, examTypeId?: number) => {
     try {
@@ -334,6 +334,9 @@ export default function PracticeSetupScreen() {
   };
 
   useEffect(() => {
+    // Don't fetch data if the user isn't allowed — they'll be redirected to /pricing
+    if (!isAllowed) return;
+
     const fetchConfig = async () => {
       try {
         setIsLoading(true);
@@ -368,7 +371,7 @@ export default function PracticeSetupScreen() {
     };
 
     fetchConfig();
-  }, []);
+  }, [isAllowed]);
 
   useEffect(() => {
     if (!selectedSubject || !selectedExamType) {
