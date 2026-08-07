@@ -148,8 +148,8 @@ export default function JambSetupScreen() {
     null,
   );
 
-  // Gate: redirect to /pricing if user has no active subscription or trial.
-  useSubscriptionGuard();
+  // Gate: redirect to /pricing if user has no paid subscription (JAMB is paid-only, trial users cannot access).
+  useSubscriptionGuard({ requirePaidOnly: true });
 
   useEffect(() => {
     const fetchJambConfiguration = async () => {

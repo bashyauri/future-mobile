@@ -2,18 +2,23 @@ import { useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
 
+type GuardOptions = {
+  /**
+   * Set to `true` for features that require a paid subscription only (e.g. Practice, JAMB, Mock exams).
+   * Set to `false` (default) for features accessible during the 48-hour trial (e.g. Lessons & Quizzes).
+   */
+  requirePaidOnly?: boolean;
+};
+
 /**
  * Centralised entitlement guard for premium screens.
  *
- * Returns:
- *  - isPremiumAllowed: true when the user has an active subscription or an active trial.
- *  - isOnActiveTrial: true when the user is currently on a trial (not yet expired).
- *
- * Side-effect: automatically replaces the current route with /pricing when the
- * user is authenticated but has no entitlement, so callers don't need to redirect
- * themselves.
+ * Mirroring the web version rules:
+ * - Paid subscribers have access to ALL features.
+ * - Trial users have access to Lessons & Quizzes, but are restricted from Practice, JAMB, and Mock exams.
+ * - Unsubscribed users (expired trial or no subscription) are restricted from ALL features.
  */
-export function useSubscriptionGuard() {
+export function useSubscriptionGuard(options?: GuardOptions) {
   const router = useRouter();
   const { user } = useAuth();
 
@@ -24,14 +29,16 @@ export function useSubscriptionGuard() {
     Boolean(user?.trial_ends_at) &&
     new Date(user!.trial_ends_at!).getTime() > Date.now();
 
-  const isPremiumAllowed = hasActiveSubscription || isOnActiveTrial;
+  const isAllowed = options?.requirePaidOnly
+    ? hasActiveSubscription
+    : hasActiveSubscription || isOnActiveTrial;
 
   useEffect(() => {
-    // Only redirect once we know the user object (not during loading)
-    if (user && !isPremiumAllowed) {
+    // Only redirect once user context is loaded
+    if (user && !isAllowed) {
       router.replace("/pricing");
     }
-  }, [user, isPremiumAllowed, router]);
+  }, [user, isAllowed, router]);
 
-  return { isPremiumAllowed, isOnActiveTrial, hasActiveSubscription };
+  return { isAllowed, isOnActiveTrial, hasActiveSubscription };
 }

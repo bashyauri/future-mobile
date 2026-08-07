@@ -116,13 +116,21 @@ export default function PricingScreen() {
     }
   };
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)");
+    }
+  };
+
   if (isAlreadySubscribed) {
     return (
       <View className="flex-1 bg-neutral-50 dark:bg-neutral-950">
         <View className="pt-16 pb-4 px-4 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex-row items-center">
           <Button
             variant="ghost"
-            onPress={() => router.back()}
+            onPress={handleBack}
             className="mr-2"
             accessibilityLabel="Go back"
           >
@@ -163,7 +171,7 @@ export default function PricingScreen() {
       <View className="pt-16 pb-4 px-4 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 flex-row items-center">
         <Button
           variant="ghost"
-          onPress={() => router.back()}
+          onPress={handleBack}
           className="mr-2"
           accessibilityLabel="Go back"
         >

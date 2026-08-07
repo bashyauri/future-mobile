@@ -141,17 +141,25 @@ export default function LessonsScreen() {
     );
   }
 
-  if (error) {
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)");
+    }
+  };
+
+  if (error || (!subject && !showAllSubjects)) {
     return (
       <View className="flex-1 items-center justify-center bg-neutral-50 dark:bg-neutral-950 px-4">
         <MaterialIcons name="error-outline" size={48} color="#ef4444" />
         <BodyText className="mt-4 text-center text-neutral-700 dark:text-neutral-300">
-          {error}
+          {error || "Subject not found"}
         </BodyText>
         <Button
           variant="outline"
           size="md"
-          onPress={() => router.back()}
+          onPress={handleBack}
           className="mt-4"
         >
           Go Back
@@ -173,7 +181,7 @@ export default function LessonsScreen() {
       >
         <View className="flex-row items-center">
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={handleBack}
             style={{ marginRight: 12 }}
           >
             <MaterialIcons

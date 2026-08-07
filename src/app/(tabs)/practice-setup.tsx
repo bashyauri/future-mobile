@@ -149,8 +149,8 @@ export default function PracticeSetupScreen() {
   >(null);
   const [isLoadingQuestionCount, setIsLoadingQuestionCount] = useState(false);
 
-  // Gate: redirect to /pricing if user has no active subscription or trial.
-  useSubscriptionGuard();
+  // Gate: redirect to /pricing if user has no paid subscription (practice is paid-only, trial users cannot access).
+  useSubscriptionGuard({ requirePaidOnly: true });
 
   const loadYears = async (subjectId?: number, examTypeId?: number) => {
     try {

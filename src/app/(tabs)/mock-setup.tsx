@@ -103,8 +103,8 @@ export default function MockSetupScreen() {
     });
   };
 
-  // Gate: redirect to /pricing if user has no active subscription or trial.
-  useSubscriptionGuard();
+  // Gate: redirect to /pricing if user has no paid subscription (Mock exams are paid-only, trial users cannot access).
+  useSubscriptionGuard({ requirePaidOnly: true });
 
   // Fetch all configuration on mount
   useEffect(() => {
