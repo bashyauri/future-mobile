@@ -152,8 +152,8 @@ export default function QuizPlayerScreen() {
       } catch (e: any) {
         setError(
           e?.response?.data?.message ??
-            e?.message ??
-            "Failed to load quiz attempt.",
+          e?.message ??
+          "Failed to load quiz attempt.",
         );
       } finally {
         setIsLoading(false);
@@ -368,7 +368,7 @@ export default function QuizPlayerScreen() {
             <Heading size="xl" className="text-center mb-1">
               {passed ? "Congratulations!" : "Keep Studying!"}
             </Heading>
-            <BodyText className="text-neutral-500 text-center">
+            <BodyText className={`text-neutral-500 text-center ${isDark ? "text-neutral-400" : ""}`}>
               {passed ? "You passed this quiz attempt." : "You did not achieve the passing score."}
             </BodyText>
           </View>
@@ -376,19 +376,19 @@ export default function QuizPlayerScreen() {
           {/* Metrics Card */}
           <View className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 p-5 mb-4">
             <View className="flex-row justify-between mb-3 pb-3 border-b border-neutral-100 dark:border-neutral-800">
-              <BodyText className="text-neutral-500">Correct Answers</BodyText>
-              <BodyText className="font-bold text-neutral-800 dark:text-neutral-200">
+              <BodyText className={`text-neutral-500 ${isDark ? "text-neutral-400" : ""}`}>Correct Answers</BodyText>
+              <BodyText className={`font-bold ${isDark ? "text-neutral-200" : "text-neutral-800"}`}>
                 {scoreData?.correct_answers} / {scoreData?.total_questions}
               </BodyText>
             </View>
             <View className="flex-row justify-between mb-3 pb-3 border-b border-neutral-100 dark:border-neutral-800">
-              <BodyText className="text-neutral-500">Score Percentage</BodyText>
+              <BodyText className={`text-neutral-500 ${isDark ? "text-neutral-400" : ""}`}>Score Percentage</BodyText>
               <BodyText className={`font-bold ${passed ? "text-green-600" : "text-amber-600"}`}>
                 {percentage}%
               </BodyText>
             </View>
             <View className="flex-row justify-between">
-              <BodyText className="text-neutral-500">Result Status</BodyText>
+              <BodyText className={`text-neutral-500 ${isDark ? "text-neutral-400" : ""}`}>Result Status</BodyText>
               <View className={`px-3 py-0.5 rounded-full ${passed ? "bg-green-100 dark:bg-green-950/30" : "bg-amber-100 dark:bg-amber-950/30"}`}>
                 <Caption className={`font-bold ${passed ? "text-green-600" : "text-amber-600"}`}>
                   {passed ? "PASSED" : "FAILED"}
@@ -423,7 +423,7 @@ export default function QuizPlayerScreen() {
                   className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 p-4"
                 >
                   <View className="flex-row justify-between items-center mb-3">
-                    <Caption className="font-bold text-neutral-500">Question {idx + 1}</Caption>
+                    <Caption className={`font-bold ${isDark ? "text-neutral-400" : "text-neutral-500"}`}>Question {idx + 1}</Caption>
                     <View className={`px-2.5 py-0.5 rounded-full ${ans.is_correct ? "bg-green-100 dark:bg-green-900/30" : "bg-red-100 dark:bg-red-900/30"}`}>
                       <Caption className={ans.is_correct ? "text-green-600" : "text-red-600"}>
                         {ans.is_correct ? "Correct" : "Incorrect"}
@@ -540,7 +540,7 @@ export default function QuizPlayerScreen() {
             <MaterialIcons
               name="close"
               size={20}
-              color={isDark ? "#a3a3a3" : "#525252"}
+              color={isDark ? "#a3a3a3" : "#171717"}
             />
           </TouchableOpacity>
 
@@ -548,7 +548,7 @@ export default function QuizPlayerScreen() {
             <Heading size="lg" numberOfLines={1}>
               {quiz.title}
             </Heading>
-            <Caption className="text-neutral-500 dark:text-neutral-400">
+            <Caption className={`text-neutral-500 ${isDark ? "text-neutral-400" : ""}`}>
               Question {currentQuestionIndex + 1} of {total}
             </Caption>
           </View>
@@ -562,11 +562,10 @@ export default function QuizPlayerScreen() {
 
         {quiz.duration_minutes > 0 && (
           <View className="flex-row items-center justify-between mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-            <Caption className="text-neutral-500">Time Remaining</Caption>
+            <Caption className={`text-neutral-500 ${isDark ? "text-neutral-400" : ""}`}>Time Remaining</Caption>
             <BodyText
-              className={`font-mono font-bold text-lg ${
-                timeRemaining < 60 ? "text-red-500" : "text-neutral-800 dark:text-neutral-200"
-              }`}
+              className={`font-mono font-bold text-lg ${timeRemaining < 60 ? "text-red-500" : isDark ? "text-neutral-200" : "text-neutral-800"
+                }`}
             >
               {formatTimerValue(timeRemaining)}
             </BodyText>
@@ -645,7 +644,7 @@ export default function QuizPlayerScreen() {
           className={`flex-row items-center px-4 py-3 rounded-xl border border-neutral-300 dark:border-neutral-700 ${currentQuestionIndex === 0 ? "opacity-30" : ""}`}
         >
           <MaterialIcons name="arrow-back" size={20} color={isDark ? "#ffffff" : "#171717"} />
-          <BodyText className="ml-1.5 font-bold">Prev</BodyText>
+          <BodyText className={`ml-1.5 font-bold ${isDark ? "text-white" : "text-neutral-900"}`}>Prev</BodyText>
         </TouchableOpacity>
 
         {currentQuestionIndex === total - 1 ? (
@@ -668,7 +667,7 @@ export default function QuizPlayerScreen() {
             onPress={nextQuestion}
             className="flex-row items-center px-4 py-3 rounded-xl border border-neutral-300 dark:border-neutral-700"
           >
-            <BodyText className="mr-1.5 font-bold">Next</BodyText>
+            <BodyText className={`mr-1.5 font-bold ${isDark ? "text-white" : "text-neutral-900"}`}>Next</BodyText>
             <MaterialIcons name="arrow-forward" size={20} color={isDark ? "#ffffff" : "#171717"} />
           </TouchableOpacity>
         )}

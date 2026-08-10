@@ -1,9 +1,22 @@
-import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, View, ViewStyle, TextStyle, TouchableOpacityProps } from 'react-native';
-import { useTheme } from '@/context/ThemeContext';
+import React from "react";
+import {
+  TouchableOpacity,
+  Text,
+  ActivityIndicator,
+  ViewStyle,
+  TextStyle,
+  TouchableOpacityProps,
+} from "react-native";
+import { useTheme } from "@/context/ThemeContext";
 
-type ButtonVariant = 'primary' | 'danger' | 'outline' | 'filled' | 'ghost';
-type ButtonSize = 'sm' | 'md' | 'lg';
+type ButtonVariant =
+  | "primary"
+  | "danger"
+  | "outline"
+  | "filled"
+  | "ghost";
+
+type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps extends TouchableOpacityProps {
   children: React.ReactNode;
@@ -23,8 +36,8 @@ interface ButtonProps extends TouchableOpacityProps {
 export function Button({
   children,
   onPress,
-  variant = 'primary',
-  size = 'md',
+  variant = "primary",
+  size = "md",
   disabled = false,
   loading = false,
   style,
@@ -32,64 +45,133 @@ export function Button({
   fullWidth = false,
   leftIcon,
   rightIcon,
-  className,
+  className = "",
   ...props
 }: ButtonProps) {
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
 
+  const isDisabled = disabled || loading;
+
+  /*
+   * ---------------------------------------------------------
+   * SIZE
+   * ---------------------------------------------------------
+   */
   const getSizeClasses = () => {
     switch (size) {
-      case 'sm':
-        return 'h-10 px-4';
-      case 'lg':
-        return 'h-14 px-6';
+      case "sm":
+        return "h-10 px-4";
+
+      case "lg":
+        return "h-14 px-6";
+
+      case "md":
       default:
-        return 'h-12 px-5';
+        return "h-12 px-5";
     }
   };
 
+  /*
+   * ---------------------------------------------------------
+   * CONTAINER / BACKGROUND
+   * ---------------------------------------------------------
+   */
   const getVariantClasses = () => {
-    const baseClasses = 'rounded-lg items-center justify-center';
-    
+    const baseClasses =
+      "rounded-lg items-center justify-center flex-row";
+
     switch (variant) {
-      case 'primary':
+      case "primary":
         return `${baseClasses} bg-primary-600`;
-      case 'danger':
+
+      case "danger":
         return `${baseClasses} bg-red-500`;
-      case 'outline':
-        return `${baseClasses} border-2 ${isDark ? 'border-neutral-600' : 'border-neutral-300'}`;
-      case 'filled':
-        return `${baseClasses} ${isDark ? 'bg-neutral-800' : 'bg-neutral-900'}`;
-      case 'ghost':
+
+      case "outline":
+        return `${baseClasses} border-2 ${isDark
+            ? "border-neutral-600"
+            : "border-neutral-300"
+          }`;
+
+      case "filled":
+        return `${baseClasses} ${isDark
+            ? "bg-neutral-800"
+            : "bg-neutral-900"
+          }`;
+
+      case "ghost":
         return `${baseClasses}`;
+
       default:
         return `${baseClasses} bg-primary-600`;
     }
   };
 
+  /*
+   * ---------------------------------------------------------
+   * TEXT SIZE
+   * ---------------------------------------------------------
+   */
   const getTextClasses = () => {
-    const baseClasses = 'font-semibold';
-    
+    const baseClasses = "font-semibold";
+
     switch (size) {
-      case 'sm':
+      case "sm":
         return `${baseClasses} text-sm`;
-      case 'lg':
+
+      case "lg":
         return `${baseClasses} text-lg`;
+
+      case "md":
       default:
         return `${baseClasses} text-base`;
     }
   };
 
+  /*
+   * ---------------------------------------------------------
+   * TEXT COLOR
+   * ---------------------------------------------------------
+   *
+   * Important:
+   *
+   * Disabled primary buttons remain WHITE.
+   * We don't use text-neutral-400 here because that can
+   * become unreadable against primary-600.
+   */
   const getTextColor = () => {
-    if (disabled || loading) return 'text-neutral-400';
-    
     switch (variant) {
-      case 'outline':
-      case 'ghost':
-        return isDark ? 'text-neutral-50' : 'text-neutral-900';
+      case "outline":
+      case "ghost":
+        return isDark
+          ? "text-neutral-50"
+          : "text-neutral-900";
+
+      case "primary":
+      case "danger":
+      case "filled":
       default:
-        return 'text-white';
+        return "text-white";
+    }
+  };
+
+  /*
+   * ---------------------------------------------------------
+   * ACTIVITY INDICATOR COLOR
+   * ---------------------------------------------------------
+   */
+  const getLoaderColor = () => {
+    switch (variant) {
+      case "outline":
+      case "ghost":
+        return isDark ? "#fafafa" : "#171717";
+
+      case "primary":
+      case "danger":
+      case "filled":
+      default:
+        return "#ffffff";
     }
   };
 
@@ -97,21 +179,35 @@ export function Button({
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={onPress}
-      disabled={disabled || loading}
-      className={`${getVariantClasses()} ${getSizeClasses()} ${fullWidth ? 'w-full' : ''} ${disabled ? 'opacity-50' : ''} ${className || ''}`}
+      disabled={isDisabled}
+      className={`
+        ${getVariantClasses()}
+        ${getSizeClasses()}
+        ${fullWidth ? "w-full" : ""}
+        ${isDisabled ? "opacity-60" : ""}
+        ${className}
+      `}
       style={style}
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? (isDark ? '#fafafa' : '#171717') : '#ffffff'} />
+        <ActivityIndicator
+          size="small"
+          color={getLoaderColor()}
+        />
       ) : (
-        <View className="flex-row items-center justify-center">
-          {leftIcon && <View className="mr-2">{leftIcon}</View>}
-          <Text className={`${getTextClasses()} ${getTextColor()}`} style={textStyle}>
+        <>
+          {leftIcon && leftIcon}
+
+          <Text
+            className={`${getTextClasses()} ${getTextColor()}`}
+            style={textStyle}
+          >
             {children}
           </Text>
-          {rightIcon && <View className="ml-2">{rightIcon}</View>}
-        </View>
+
+          {rightIcon && rightIcon}
+        </>
       )}
     </TouchableOpacity>
   );

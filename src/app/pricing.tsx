@@ -86,10 +86,24 @@ export default function PricingScreen() {
 
         await verifyPayment(referenceFromUrl || reference);
       } else {
-        // If they just closed the browser (authResult.type === "cancel")
-        // We can optionally verify anyway just in case the webhook fired and payment actually succeeded,
-        // but typically we just abort.
-        console.log("Browser closed or cancelled");
+        // Browser was dismissed without a deep-link redirect (e.g. user tapped
+        // the Android back button, or Paystack closed the window after payment).
+        // Silently attempt verification using the reference from /payment/initialize
+        // in case the payment actually completed but the deep link never fired.
+        if (reference) {
+          try {
+            setSubscribingTo("verify");
+            await api.post("/payment/verify", { reference });
+            await refreshUser();
+            Alert.alert("Success", "Your subscription is now active!");
+            router.replace("/(tabs)");
+          } catch {
+            // Verification failed — payment likely didn't complete. No alert needed.
+            console.log("Silent verify after browser dismiss: payment not completed");
+          } finally {
+            setSubscribingTo(null);
+          }
+        }
       }
 
     } catch (e: any) {

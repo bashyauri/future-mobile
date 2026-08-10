@@ -151,48 +151,96 @@ export default function JambSetupScreen() {
   const { isAllowed } = useSubscriptionGuard({ requirePaidOnly: true });
 
   useEffect(() => {
-    // Don't fetch data if the user isn't allowed — they'll be redirected to /pricing
-    if (!isAllowed) return;
+    if (!isAllowed) {
+      setIsLoading(false);
+      return;
+    }
 
     const fetchJambConfiguration = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        const examTypesResponse = await api.get("/config/exam-types");
-        const examTypes: ExamType[] = examTypesResponse.data?.data ?? [];
+
+        const [examTypesResponse, subjectsResponseAll, yearsResponseAll] =
+          await Promise.all([
+            api.get("/config/exam-types"),
+            api.get("/config/subjects"),
+            api.get("/config/years"),
+          ]);
+
+        const examTypes: ExamType[] =
+          examTypesResponse.data?.data ?? [];
+
         const jambExamType =
-          examTypes.find((examType) => examType.slug === "jamb") ?? null;
+          examTypes.find(
+            (examType) => examType.slug === "jamb"
+          ) ?? null;
 
-        const [subjectsResponse, yearsResponse] = await Promise.all([
-          api.get("/config/subjects", {
-            params: jambExamType
-              ? { exam_type_id: jambExamType.id }
-              : undefined,
-          }),
-          api.get("/config/years", {
-            params: jambExamType
-              ? { exam_type_id: jambExamType.id }
-              : undefined,
-          }),
-        ]);
+        let fetchedSubjects: Subject[];
+        let fetchedYears: Year[];
 
-        const fetchedSubjects: Subject[] =
-          subjectsResponse.data?.data ?? subjectsResponse.data ?? [];
-        const fetchedYears = normalizeYears(
-          yearsResponse.data?.data ?? yearsResponse.data ?? [],
-        );
+        if (jambExamType) {
+          const [subjectsFiltered, yearsFiltered] =
+            await Promise.all([
+              api.get("/config/subjects", {
+                params: {
+                  exam_type_id: jambExamType.id,
+                },
+              }),
+
+              api.get("/config/years", {
+                params: {
+                  exam_type_id: jambExamType.id,
+                },
+              }),
+            ]);
+
+          fetchedSubjects =
+            subjectsFiltered.data?.data ??
+            subjectsFiltered.data ??
+            [];
+
+          fetchedYears = normalizeYears(
+            yearsFiltered.data?.data ??
+            yearsFiltered.data ??
+            []
+          );
+        } else {
+          fetchedSubjects =
+            subjectsResponseAll.data?.data ??
+            subjectsResponseAll.data ??
+            [];
+
+          fetchedYears = normalizeYears(
+            yearsResponseAll.data?.data ??
+            yearsResponseAll.data ??
+            []
+          );
+        }
 
         setSubjects(fetchedSubjects);
-        setYears([{ year: "all", label: "All Years" }, ...fetchedYears]);
-        setSelectedYear({ year: "all", label: "All Years" });
+
+        setYears([
+          { year: "all", label: "All Years" },
+          ...fetchedYears,
+        ]);
+
+        setSelectedYear({
+          year: "all",
+          label: "All Years",
+        });
 
         const compulsory = fetchedSubjects
-          .filter((subject) => isCompulsoryEnglishSubject(subject))
+          .filter(isCompulsoryEnglishSubject)
           .map((subject) => subject.id);
 
         setSelectedIds(compulsory);
       } catch (e) {
-        setError("Could not load subjects. Please check your connection.");
+        console.log("JAMB CONFIG ERROR:", e);
+
+        setError(
+          "Could not load subjects. Please check your connection."
+        );
       } finally {
         setIsLoading(false);
       }
@@ -232,29 +280,42 @@ export default function JambSetupScreen() {
       const fetchJambConfiguration = async () => {
         try {
           setError(null);
-          const examTypesResponse = await api.get("/config/exam-types");
+
+          const [examTypesResponse, subjectsResponseAll, yearsResponseAll] =
+            await Promise.all([
+              api.get("/config/exam-types"),
+              api.get("/config/subjects"),
+              api.get("/config/years"),
+            ]);
+
           const examTypes: ExamType[] = examTypesResponse.data?.data ?? [];
           const jambExamType =
             examTypes.find((examType) => examType.slug === "jamb") ?? null;
 
-          const [subjectsResponse, yearsResponse] = await Promise.all([
-            api.get("/config/subjects", {
-              params: jambExamType
-                ? { exam_type_id: jambExamType.id }
-                : undefined,
-            }),
-            api.get("/config/years", {
-              params: jambExamType
-                ? { exam_type_id: jambExamType.id }
-                : undefined,
-            }),
-          ]);
+          let fetchedSubjects: Subject[];
+          let fetchedYears: Year[];
 
-          const fetchedSubjects: Subject[] =
-            subjectsResponse.data?.data ?? subjectsResponse.data ?? [];
-          const fetchedYears = normalizeYears(
-            yearsResponse.data?.data ?? yearsResponse.data ?? [],
-          );
+          if (jambExamType) {
+            const [subjectsFiltered, yearsFiltered] = await Promise.all([
+              api.get("/config/subjects", {
+                params: { exam_type_id: jambExamType.id },
+              }),
+              api.get("/config/years", {
+                params: { exam_type_id: jambExamType.id },
+              }),
+            ]);
+            fetchedSubjects =
+              subjectsFiltered.data?.data ?? subjectsFiltered.data ?? [];
+            fetchedYears = normalizeYears(
+              yearsFiltered.data?.data ?? yearsFiltered.data ?? [],
+            );
+          } else {
+            fetchedSubjects =
+              subjectsResponseAll.data?.data ?? subjectsResponseAll.data ?? [];
+            fetchedYears = normalizeYears(
+              yearsResponseAll.data?.data ?? yearsResponseAll.data ?? [],
+            );
+          }
 
           setSubjects(fetchedSubjects);
           setYears([{ year: "all", label: "All Years" }, ...fetchedYears]);
@@ -301,7 +362,7 @@ export default function JambSetupScreen() {
       const parsedQuestionsPerSubject = Number(questionsPerSubjectInput);
       const questionsPerSubject =
         questionsPerSubjectInput.trim().length > 0 &&
-        Number.isFinite(parsedQuestionsPerSubject)
+          Number.isFinite(parsedQuestionsPerSubject)
           ? parsedQuestionsPerSubject
           : undefined;
       const parsedTimeLimit = Number(timeLimitInput);
@@ -481,11 +542,10 @@ export default function JambSetupScreen() {
                       </View>
                     ) : (
                       <View
-                        className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
-                          isSelected
+                        className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected
                             ? "bg-primary-500 border-primary-500"
                             : "border-neutral-300 dark:border-neutral-600"
-                        }`}
+                          }`}
                       >
                         {isSelected && (
                           <MaterialIcons name="check" size={14} color="white" />

@@ -609,7 +609,7 @@ const PracticeQuizScreen = () => {
             <MaterialIcons
               name="close"
               size={20}
-              color={isDark ? "#a3a3a3" : "#525252"}
+              color={isDark ? "#a3a3a3" : "#171717"}
             />
           </TouchableOpacity>
 
@@ -617,7 +617,7 @@ const PracticeQuizScreen = () => {
             <Heading size="lg" className="mb-1">
               Practice Exam
             </Heading>
-            <Caption className="text-neutral-500 dark:text-neutral-400">
+            <Caption className={`text-neutral-500 ${isDark ? "text-neutral-400" : ""}`}>
               Question {currentQuestionIndex + 1} of {totalQuestions}
             </Caption>
           </View>
@@ -635,14 +635,14 @@ const PracticeQuizScreen = () => {
 
         {timeLimit && timeLimit > 0 && (
           <View className="flex-row items-center justify-between">
-            <Caption className="text-neutral-500 dark:text-neutral-400">
+            <Caption className={`text-neutral-500 ${isDark ? "text-neutral-400" : ""}`}>
               Time Remaining
             </Caption>
             <BodyText
               className={`font-mono text-xl font-bold ${
                 timeRemaining < 600
-                  ? "text-red-600 dark:text-red-400"
-                  : "text-primary-600 dark:text-primary-400"
+                  ? "text-red-600"
+                  : isDark ? "text-primary-400" : "text-primary-600"
               }`}
             >
               {formatTime(timeRemaining)}
@@ -819,7 +819,7 @@ const PracticeQuizScreen = () => {
             >
               ← Previous
             </Button>
-            <Caption className="text-neutral-500 dark:text-neutral-400">
+            <Caption className={`text-neutral-500 ${isDark ? "text-neutral-400" : ""}`}>
               {currentQuestionIndex + 1}/{totalQuestions}
             </Caption>
             <Button
@@ -883,7 +883,7 @@ const PracticeQuizScreen = () => {
                 />
               </TouchableOpacity>
             </View>
-            <Caption className="mt-2 text-neutral-500 dark:text-neutral-400">
+            <Caption className={`mt-2 text-neutral-500 ${isDark ? "text-neutral-400" : ""}`}>
               Answered: {getAnsweredCount()}/{totalQuestions}
             </Caption>
           </View>

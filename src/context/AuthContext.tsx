@@ -70,11 +70,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  /**
+   * Persist the user object to storage so it can be restored instantly on
+   * next launch — eliminating the sequential auth → guard → data-fetch delay.
+   */
+  const persistUser = useCallback(
+    async (userData: User | null) => {
+      try {
+        if (userData) {
+          await storage.setItem("cached_user", JSON.stringify(userData));
+        } else {
+          await storage.deleteItem("cached_user");
+        }
+      } catch {
+        // Non-fatal — worst case the next launch will just wait for /user
+      }
+    },
+    [],
+  );
+
   const refreshUser = useCallback(async () => {
     try {
       const token = await storage.getItem("auth_token");
       if (!token) {
         setUser(null);
+        await persistUser(null);
         return null;
       }
 
@@ -84,6 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const finalUser = normalizeUser(apiUser);
 
       setUser(finalUser);
+      // Persist in the background — don't await to avoid blocking the caller
+      persistUser(finalUser).catch(() => {});
       return finalUser;
     } catch (error) {
       console.log("Auth refresh failed:", error);
@@ -91,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser((prevUser) => {
         if (!prevUser) {
           storage.deleteItem("auth_token").catch(() => {});
+          persistUser(null).catch(() => {});
           return null;
         }
         return prevUser;
@@ -98,13 +121,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       throw error;
     }
-  }, [normalizeUser]);
+  }, [normalizeUser, persistUser]);
 
   useEffect(() => {
     let cancelled = false;
 
     const checkAuth = async () => {
       try {
+        // --- Fast path: restore user from cache so screens render immediately ---
+        const token = await storage.getItem("auth_token");
+        if (token) {
+          const cached = await storage.getItem("cached_user");
+          if (cached) {
+            try {
+              const cachedUser = normalizeUser(JSON.parse(cached) as Partial<User>);
+              if (!cancelled) {
+                setUser(cachedUser);
+                // Release the loading gate immediately so screens can render
+                setHasBootstrapped(true);
+                setIsLoading(false);
+              }
+            } catch {
+              // Corrupt cache — fall through to full refresh below
+            }
+          }
+        }
+
+        // --- Background refresh: always sync with the server ---
         await refreshUser();
       } catch (error) {
         console.log("Initial auth bootstrap failed:", error);
@@ -121,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [refreshUser]);
+  }, [refreshUser, normalizeUser]);
 
   const router = useRouter();
 
@@ -129,6 +172,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await storage.setItem("auth_token", token);
     // Use server-provided onboarding flag directly; avoid overwriting with false
     setUser(userData);
+    // Cache the user so the next launch resolves isAllowed instantly
+    persistUser(userData).catch(() => {});
     console.log("Login successful, user:", userData);
   };
 
@@ -144,6 +189,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     await storage.deleteItem("auth_token");
+    // Clear cached user so a new login starts fresh
+    await persistUser(null);
 
     console.log("Token deleted");
 
