@@ -605,7 +605,7 @@ export default function QuizPlayerScreen() {
                   <TouchableOpacity
                     key={opt.id}
                     onPress={() => selectOption(opt.id)}
-                    className={`flex-row items-start border-2 rounded-2xl p-4 ${bgColor} ${borderColor}`}
+                    className={`flex-row items-start border-2 rounded-2xl p-4 mb-4 ${bgColor} ${borderColor}`}
                     style={{ minHeight: 56 }}
                   >
                     <View className={`w-6 h-6 rounded-full border-2 items-center justify-center mr-3 mt-0.5 ${isSelected ? "border-indigo-600 bg-indigo-600" : "border-neutral-300 dark:border-neutral-700"}`}>
