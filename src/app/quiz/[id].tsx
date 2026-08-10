@@ -438,7 +438,7 @@ export default function QuizPlayerScreen() {
                   />
 
                   {/* Options Review */}
-                  <View className="mt-3 space-y-2">
+                  <View className="mt-4">
                     {ans.options.map((opt) => {
                       const isSelected = ans.selected_option_id === opt.id;
                       const isCorrectOpt = opt.is_correct;
@@ -463,7 +463,7 @@ export default function QuizPlayerScreen() {
                       return (
                         <View
                           key={opt.id}
-                          className={`flex-row items-center border p-3 rounded-xl ${bgColor} ${borderColor}`}
+                          className={`flex-row items-center border p-3 rounded-xl mb-3 ${bgColor} ${borderColor}`}
                         >
                           <View className="flex-1">
                             {!opt.option_text_html || !opt.option_text_html.includes("<") ? (
