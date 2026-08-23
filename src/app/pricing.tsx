@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, Alert } from "react-native";
+import { View, ScrollView, Alert, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
@@ -24,6 +24,10 @@ export default function PricingScreen() {
   const [plans, setPlans] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [subscribingTo, setSubscribingTo] = useState<string | null>(null);
+  const [paymentType, setPaymentType] = useState<'one_time' | 'recurring'>('recurring');
+  const [linkedStudents, setLinkedStudents] = useState<any[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
   const studentId = params.studentId ? parseInt(params.studentId as string, 10) : null;
   const isParent = user?.account_type === 'guardian' || user?.account_type === 'school' || user?.account_type === 'community';
@@ -31,7 +35,22 @@ export default function PricingScreen() {
 
   useEffect(() => {
     fetchPricing();
+    if (isParent && !studentId) {
+      fetchLinkedStudents();
+    }
   }, []);
+
+  const fetchLinkedStudents = async () => {
+    try {
+      setLoadingStudents(true);
+      const res = await api.get("/parent/linked-students");
+      setLinkedStudents(res.data?.data ?? []);
+    } catch (e: any) {
+      console.warn("Failed to fetch linked students:", e);
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
 
   const fetchPricing = async () => {
     try {
@@ -47,18 +66,20 @@ export default function PricingScreen() {
   };
 
   const handleSubscribe = async (planKey: string) => {
-    if (isParent && !studentId) {
+    const targetStudentId = selectedStudentId || studentId;
+
+    if (isParent && !targetStudentId) {
       Alert.alert("Error", "Please select a student to pay for.");
       return;
     }
 
     try {
       setSubscribingTo(planKey);
-      
+
       const payload = {
         plan: planKey,
-        type: "recurring",
-        student_id: studentId,
+        type: paymentType,
+        student_id: targetStudentId,
       };
 
       const res = await api.post("/payment/initialize", payload);
@@ -199,14 +220,107 @@ export default function PricingScreen() {
       </View>
 
       <ScrollView className="flex-1 px-4 pt-6" showsVerticalScrollIndicator={false}>
-        {isParent && studentId ? (
-          <View className="mb-6 bg-blue-50 dark:bg-blue-900/30 p-4 rounded-xl flex-row items-center">
-            <MaterialIcons name="info" size={24} color="#3b82f6" />
-            <BodyText className="ml-3 flex-1 text-blue-900 dark:text-blue-100">
-              You are subscribing for Student ID: {studentId}
-            </BodyText>
+        {isParent && (
+          <View className="mb-6">
+            {!studentId && (
+              <View className="mb-4">
+                <Subheading size="md" className="mb-2">Select Linked Student</Subheading>
+                {loadingStudents ? (
+                  <View className="flex-row items-center">
+                    <MaterialIcons name="hourglass-empty" size={20} color="#9ca3af" />
+                    <Caption className="ml-2 text-neutral-500">Loading students...</Caption>
+                  </View>
+                ) : linkedStudents.length === 0 ? (
+                  <View className="bg-amber-50 dark:bg-amber-900/30 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
+                    <BodyText className="text-amber-900 dark:text-amber-100 text-sm">
+                      No linked students available. Link a student from your guardian dashboard first.
+                    </BodyText>
+                  </View>
+                ) : (
+                  <View className="flex-row flex-wrap gap-2">
+                    {linkedStudents.map((student) => (
+                      <TouchableOpacity
+                        key={student.id}
+                        onPress={() => setSelectedStudentId(student.id)}
+                        className={`px-4 py-2 rounded-full border-2 ${
+                          selectedStudentId === student.id
+                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
+                            : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'
+                        }`}
+                      >
+                        <BodyText
+                          className={`text-sm ${
+                            selectedStudentId === student.id
+                              ? 'text-primary-700 dark:text-primary-300 font-semibold'
+                              : 'text-neutral-700 dark:text-neutral-300'
+                          }`}
+                        >
+                          {student.name}
+                        </BodyText>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+            {(studentId || selectedStudentId) && (
+              <View className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-xl flex-row items-center">
+                <MaterialIcons name="info" size={24} color="#3b82f6" />
+                <BodyText className="ml-3 flex-1 text-blue-900 dark:text-blue-100">
+                  You are subscribing for: {studentId ? `Student ID: ${studentId}` : linkedStudents.find(s => s.id === selectedStudentId)?.name}
+                </BodyText>
+              </View>
+            )}
           </View>
-        ) : null}
+        )}
+
+        <View className="mb-6">
+          <Subheading size="md" className="mb-2">Payment Type</Subheading>
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              onPress={() => setPaymentType('one_time')}
+              className={`flex-1 px-4 py-3 rounded-xl border-2 ${
+                paymentType === 'one_time'
+                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
+                  : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'
+              }`}
+            >
+              <BodyText
+                className={`text-center font-semibold ${
+                  paymentType === 'one_time'
+                    ? 'text-primary-700 dark:text-primary-300'
+                    : 'text-neutral-700 dark:text-neutral-300'
+                }`}
+              >
+                One-Time
+              </BodyText>
+              <Caption className="text-center text-neutral-500 dark:text-neutral-400 text-xs mt-1">
+                Pay once
+              </Caption>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setPaymentType('recurring')}
+              className={`flex-1 px-4 py-3 rounded-xl border-2 ${
+                paymentType === 'recurring'
+                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
+                  : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'
+              }`}
+            >
+              <BodyText
+                className={`text-center font-semibold ${
+                  paymentType === 'recurring'
+                    ? 'text-primary-700 dark:text-primary-300'
+                    : 'text-neutral-700 dark:text-neutral-300'
+                }`}
+              >
+                Recurring
+              </BodyText>
+              <Caption className="text-center text-neutral-500 dark:text-neutral-400 text-xs mt-1">
+                Auto-renew
+              </Caption>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {loading ? (
           <View className="gap-4">
