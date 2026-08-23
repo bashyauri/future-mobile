@@ -69,6 +69,15 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="info" options={{ headerShown: false }} />
+      <Stack.Screen name="jamb" options={{ headerShown: false }} />
+      <Stack.Screen name="lessons" options={{ headerShown: false }} />
+      <Stack.Screen name="mock" options={{ headerShown: false }} />
+      <Stack.Screen name="practice" options={{ headerShown: false }} />
+      <Stack.Screen name="quiz" options={{ headerShown: false }} />
+      <Stack.Screen name="parent" options={{ headerShown: false }} />
+      <Stack.Screen name="payment" options={{ headerShown: false }} />
+      <Stack.Screen name="pricing" options={{ headerShown: false }} />
     </Stack>
   );
 }

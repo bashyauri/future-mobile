@@ -23,6 +23,12 @@ module.exports = {
     icon: "./assets/images/icon.png",
     scheme: "mobile",
     userInterfaceStyle: "automatic",
+    updates: {
+      url: "https://u.expo.dev/a380bf24-ea8d-4d49-8f5c-0ffee7606e76",
+    },
+    runtimeVersion: {
+      policy: "appVersion",
+    },
     ios: {
       icon: "./assets/expo.icon",
       bundleIdentifier: isDevelopment

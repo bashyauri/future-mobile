@@ -142,19 +142,19 @@ export default function SettingsScreen() {
 
       {/* Support & About Section */}
       <Section title="Support & About">
-        <SettingRow icon="help-outline" label="Help Center" onPress={() => { }} />
-        <SettingRow icon="privacy-tip" label="Privacy Policy" onPress={() => { }} />
-        <SettingRow icon="info-outline" label="About Future Academy" onPress={() => { }} showBorder={false} />
+        <SettingRow icon="help-outline" label="Help Center" onPress={() => router.push('/info/help-center')} />
+        <SettingRow icon="privacy-tip" label="Privacy Policy" onPress={() => router.push('/info/privacy-policy')} />
+        <SettingRow icon="info-outline" label="About Future Academy" onPress={() => router.push('/info/about')} showBorder={false} />
       </Section>
 
       {/* Danger Zone */}
       <View className="px-4 py-8 mb-8">
         <TouchableOpacity
-          className="bg-white dark:bg-neutral-900 rounded-xl border border-error-200 dark:border-error-900/50 flex-row items-center justify-center py-4"
+          className="bg-red-50 dark:bg-neutral-900 rounded-xl border border-error-200 dark:border-error-900/50 flex-row items-center justify-center py-4"
           onPress={handleLogout}
         >
           <MaterialIcons name="logout" size={20} color="#ef4444" style={{ marginRight: 8 }} />
-          <BodyText className="text-error-500 font-semibold">Log Out</BodyText>
+          <BodyText className="text-error-600 dark:text-error-500 font-semibold">Log Out</BodyText>
         </TouchableOpacity>
       </View>
     </ScrollView>
