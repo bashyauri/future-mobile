@@ -18,14 +18,12 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
   try {
     const token = await storage.getItem("auth_token");
-    console.log(">>> Request interceptor - token:", token);
+
     if (token) {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
     }
-  } catch (e) {
-    console.warn("Token error", e);
-  }
+  } catch (e) {}
   return config;
 });
 
@@ -33,17 +31,19 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) {
-      console.warn("Unauthorized");
     }
 
     // Network error handling
     if (!error.response) {
-      let errorMessage = "Unable to connect to the server. Please check your internet connection and try again.";
+      let errorMessage =
+        "Unable to connect to the server. Please check your internet connection and try again.";
 
       if (error.code === "ECONNABORTED") {
-        errorMessage = "Request timed out. Please check your connection and try again.";
+        errorMessage =
+          "Request timed out. Please check your connection and try again.";
       } else if (error.message?.includes("Network Error")) {
-        errorMessage = "Network error. Please check your internet connection and try again.";
+        errorMessage =
+          "Network error. Please check your internet connection and try again.";
       }
 
       // Show alert for network errors
@@ -51,10 +51,8 @@ api.interceptors.response.use(
         Alert.alert(
           "Connection Error",
           errorMessage,
-          [
-            { text: "OK", style: "default" },
-          ],
-          { cancelable: false }
+          [{ text: "OK", style: "default" }],
+          { cancelable: false },
         );
       }
     }

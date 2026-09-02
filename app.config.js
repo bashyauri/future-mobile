@@ -30,7 +30,7 @@ module.exports = {
       policy: "appVersion",
     },
     ios: {
-      icon: "./assets/expo.icon",
+      icon: "./assets/images/icon.png",
       bundleIdentifier: isDevelopment
         ? "com.bashyauri.mobile.dev"
         : isPreview
