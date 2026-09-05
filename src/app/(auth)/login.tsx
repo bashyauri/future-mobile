@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -68,9 +69,11 @@ export default function LoginScreen() {
       className={`flex-1 px-6 justify-center ${isDark ? "bg-neutral-950" : "bg-white"}`}
     >
       <View className="mb-10">
-        <View className="w-16 h-16 rounded-2xl bg-primary-100 dark:bg-primary-900/30 items-center justify-center mb-6">
-          <MaterialIcons name="school" size={32} color="#4f46e5" />
-        </View>
+        <Image
+          source={require("../../../assets/images/icon.png")}
+          style={{ width: 68, height: 68, borderRadius: 16, marginBottom: 20 }}
+          resizeMode="cover"
+        />
         <Heading size="xl">Welcome Back</Heading>
         <BodyText variant="subtle" className="mt-2">
           Sign in to continue your learning journey.

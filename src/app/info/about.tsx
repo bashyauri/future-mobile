@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity, Linking, ScrollView } from 'react-native';
+import { View, TouchableOpacity, Linking, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
@@ -24,27 +24,26 @@ export default function AboutScreen() {
       description: 'Access thousands of practice questions across JAMB, WAEC, and other examinations.',
     },
     {
+      icon: 'psychology',
+      title: 'AI-Powered Insights',
+      description: 'Get personalized feedback and recommendations based on your performance.',
+    },
+    {
       icon: 'trending-up',
-      title: 'Track Your Progress',
-      description: 'Monitor your performance with detailed analytics and personalized insights.',
+      title: 'Track Your Growth',
+      description: 'Detailed analytics and progress tracking to identify strengths and areas for improvement.',
     },
     {
-      icon: 'offline-bolt',
-      title: 'Offline Learning',
-      description: 'Download lessons and practice questions to study without internet access.',
-    },
-    {
-      icon: 'groups',
-      title: 'Expert Support',
-      description: 'Get help from experienced tutors and connect with fellow students.',
+      icon: 'workspace-premium',
+      title: 'Expert-Crafted Content',
+      description: 'Questions and explanations prepared by experienced educators.',
     },
   ];
 
   const stats = [
-    { label: 'Students', value: '10K+' },
-    { label: 'Questions', value: '50K+' },
-    { label: 'Subjects', value: '20+' },
-    { label: 'Success Rate', value: '95%' },
+    { label: 'Practice Questions', value: '10,000+' },
+    { label: 'Active Students', value: '5,000+' },
+    { label: 'Success Rate', value: '94%' },
   ];
 
   return (
@@ -66,9 +65,11 @@ export default function AboutScreen() {
 
         {/* Logo and Title */}
         <View className="items-center mb-6">
-          <View className={`w-20 h-20 rounded-2xl items-center justify-center mb-4 ${isDark ? 'bg-primary-900/30' : 'bg-primary-50'}`}>
-            <MaterialIcons name="school" size={40} color="#4f46e5" />
-          </View>
+          <Image
+            source={require('../../../assets/images/icon.png')}
+            style={{ width: 88, height: 88, borderRadius: 20, marginBottom: 16 }}
+            resizeMode="cover"
+          />
           <Heading size="xl" className="mb-2">Future Academy</Heading>
           <BodyText variant="subtle">Version 1.0.0</BodyText>
         </View>
