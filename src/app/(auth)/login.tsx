@@ -112,6 +112,16 @@ export default function LoginScreen() {
           }
         />
 
+        <View className="items-end -mt-1 mb-2">
+          <Link href="/(auth)/forgot-password" asChild>
+            <Pressable>
+              <Text className="text-sm font-medium text-primary-600">
+                Forgot Password?
+              </Text>
+            </Pressable>
+          </Link>
+        </View>
+
         <Button
           variant="primary"
           size="lg"

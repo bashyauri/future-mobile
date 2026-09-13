@@ -44,8 +44,14 @@ export function useSubscriptionGuard(
   // Subscription
   // ---------------------------------------------------------------------------
 
+  const isSuperAdmin =
+    user?.account_type === "super-admin" ||
+    user?.account_type === "admin" ||
+    user?.role === "super-admin" ||
+    user?.role === "admin";
+
   const hasActiveSubscription =
-    user?.has_active_subscription === true;
+    isSuperAdmin || user?.has_active_subscription === true;
 
   // ---------------------------------------------------------------------------
   // Trial
