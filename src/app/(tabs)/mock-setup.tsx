@@ -1,15 +1,11 @@
 import { useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   View,
   ScrollView,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNetInfo } from "@react-native-community/netinfo";
@@ -46,6 +42,17 @@ type ExamType = {
 type Subject = {
   id: number;
   name: string;
+  question_count?: number;
+  time_limit_minutes?: number | null;
+  available_mock_questions?: number;
+};
+
+type MockGroup = {
+  id: number;
+  batch_number: number;
+  total_questions: number;
+  is_completed: boolean;
+  best_score: number | null;
 };
 
 type MockFormatSpec = {
@@ -70,7 +77,7 @@ type MockFormatSpec = {
 // Constants
 // -----------------------------------------------------------------------------
 
-const MAX_SUBJECTS = 4;
+const JAMB_MAX_SUBJECTS = 4;
 const CONFIG_TIMEOUT = 15000;
 
 // -----------------------------------------------------------------------------
@@ -102,10 +109,7 @@ export default function MockSetupScreen() {
   // Subscription
   // ---------------------------------------------------------------------------
 
-  const {
-    isAllowed,
-    isChecking,
-  } = useSubscriptionGuard({
+  const { isAllowed, isChecking } = useSubscriptionGuard({
     requirePaidOnly: true,
   });
 
@@ -130,22 +134,77 @@ export default function MockSetupScreen() {
   // User selections
   // ---------------------------------------------------------------------------
 
-  const [selectedExamType, setSelectedExamType] =
-    useState<ExamType | null>(null);
+  const [selectedExamType, setSelectedExamType] = useState<ExamType | null>(
+    null,
+  );
 
-  const [selectedSubjects, setSelectedSubjects] =
-    useState<Subject[]>([]);
+  const [selectedSubjects, setSelectedSubjects] = useState<Subject[]>([]);
+
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+
+  const [showBatchPicker, setShowBatchPicker] = useState(false);
+  const [mockGroups, setMockGroups] = useState<MockGroup[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
+
+  const subjectLimit =
+    selectedExamType?.exam_format?.toLowerCase() === "jamb"
+      ? JAMB_MAX_SUBJECTS
+      : null;
+
+  const getSubjectSpec = useCallback(
+    (subject: Subject) => {
+      const examFormat =
+        selectedExamType?.exam_format?.toLowerCase() ?? "default";
+      const format = mockFormats[examFormat] ?? mockFormats.default;
+      const subjectName = subject.name.toLowerCase();
+      const matchingRule = format?.per_subject?.find((rule) =>
+        rule.match.some(
+          (pattern) => pattern && subjectName.includes(pattern.toLowerCase()),
+        ),
+      );
+
+      return {
+        questions: matchingRule?.questions ?? format?.default?.questions ?? 50,
+        time: matchingRule?.time ?? format?.default?.time ?? null,
+      };
+    },
+    [mockFormats, selectedExamType],
+  );
+
+  const totalQuestions = selectedSubjects.reduce(
+    (total, subject) => total + getSubjectSpec(subject).questions,
+    0,
+  );
+
+  const totalTime = (() => {
+    const examFormat =
+      selectedExamType?.exam_format?.toLowerCase() ?? "default";
+    const overall = mockFormats[examFormat]?.overall;
+
+    if (overall?.time_limit) {
+      return overall.time_limit;
+    }
+
+    if (overall?.sum_subject_time) {
+      return (
+        selectedSubjects.reduce(
+          (total, subject) => total + (getSubjectSpec(subject).time ?? 0),
+          0,
+        ) || 100
+      );
+    }
+
+    return 100;
+  })();
 
   // ---------------------------------------------------------------------------
   // Mock preparation
   // ---------------------------------------------------------------------------
 
   const [isPreparing, setIsPreparing] = useState(false);
-  const [prepareStatus, setPrepareStatus] =
-    useState<string | null>(null);
+  const [prepareStatus, setPrepareStatus] = useState<string | null>(null);
 
-  const [isUpdatingSelection, setIsUpdatingSelection] =
-    useState(false);
+  const [isUpdatingSelection, setIsUpdatingSelection] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Refs
@@ -184,9 +243,7 @@ export default function MockSetupScreen() {
       );
 
       setSelectedSubjects((previous) =>
-        previous.filter((subject) =>
-          allowedSubjectIds.has(subject.id),
-        ),
+        previous.filter((subject) => allowedSubjectIds.has(subject.id)),
       );
     },
     [],
@@ -214,7 +271,7 @@ export default function MockSetupScreen() {
       try {
         const signal = createTimeoutSignal(CONFIG_TIMEOUT);
 
-        const response = await api.get("/config/subjects", {
+        const response = await api.get("/mock/subjects", {
           params: {
             exam_type_id: examTypeId,
           },
@@ -222,17 +279,12 @@ export default function MockSetupScreen() {
         });
 
         // Ignore stale requests.
-        if (
-          !mountedRef.current ||
-          requestId !== subjectsRequestIdRef.current
-        ) {
+        if (!mountedRef.current || requestId !== subjectsRequestIdRef.current) {
           return;
         }
 
         const fetchedSubjects: Subject[] =
-          response.data?.data ??
-          response.data ??
-          [];
+          response.data?.data ?? response.data ?? [];
 
         setSubjects(fetchedSubjects);
 
@@ -243,16 +295,11 @@ export default function MockSetupScreen() {
         }
 
         if (e?.code === "ERR_CANCELED") {
-          console.log(
-            "Subject request cancelled/timed out.",
-          );
+          console.log("Subject request cancelled/timed out.");
           return;
         }
 
-        console.warn(
-          "Failed to load subjects:",
-          e?.response?.data ?? e,
-        );
+        console.warn("Failed to load subjects:", e?.response?.data ?? e);
 
         setError(
           "Failed to load subjects. Please check your connection and try again.",
@@ -262,22 +309,46 @@ export default function MockSetupScreen() {
     [preserveValidSelectedSubjects],
   );
 
+  const browseMockGroups = useCallback(async () => {
+    if (!selectedExamType || selectedSubjects.length !== 1) {
+      return;
+    }
+
+    setIsLoadingGroups(true);
+    setShowBatchPicker(true);
+
+    try {
+      const response = await api.get("/mock/groups", {
+        params: {
+          subject_id: selectedSubjects[0].id,
+          exam_type_id: selectedExamType.id,
+        },
+      });
+
+      setMockGroups(response.data?.data ?? []);
+    } catch (fetchError: any) {
+      setShowBatchPicker(false);
+      Alert.alert(
+        "Unable to Load Mock Batches",
+        fetchError?.response?.data?.message ?? "Please try again.",
+      );
+    } finally {
+      setIsLoadingGroups(false);
+    }
+  }, [selectedExamType, selectedSubjects]);
+
   // ---------------------------------------------------------------------------
   // Fetch complete mock configuration
   // ---------------------------------------------------------------------------
 
   const fetchConfig = useCallback(
-    async (options?: {
-      showLoader?: boolean;
-      preserveSelection?: boolean;
-    }) => {
+    async (options?: { showLoader?: boolean; preserveSelection?: boolean }) => {
       if (!isAllowed || isChecking) {
         return;
       }
 
       const showLoader = options?.showLoader ?? true;
-      const preserveSelection =
-        options?.preserveSelection ?? false;
+      const preserveSelection = options?.preserveSelection ?? false;
 
       try {
         if (mountedRef.current && showLoader) {
@@ -292,12 +363,16 @@ export default function MockSetupScreen() {
 
         const signal = createTimeoutSignal(CONFIG_TIMEOUT);
 
-        const [examRes, formatsRes] = await Promise.all([
+        const [examRes, formatsRes, activeSessionRes] = await Promise.all([
           api.get("/config/exam-types", {
             ...(signal ? { signal } : {}),
           }),
 
           api.get("/config/mock-formats", {
+            ...(signal ? { signal } : {}),
+          }),
+
+          api.get("/mock/sessions/active", {
             ...(signal ? { signal } : {}),
           }),
         ]);
@@ -307,21 +382,17 @@ export default function MockSetupScreen() {
         }
 
         const fetchedExamTypes: ExamType[] =
-          examRes.data?.data ??
-          examRes.data ??
-          [];
+          examRes.data?.data ?? examRes.data ?? [];
 
-        const fetchedFormats: Record<
-          string,
-          MockFormatSpec
-        > = formatsRes.data?.data ?? {};
+        const fetchedFormats: Record<string, MockFormatSpec> =
+          formatsRes.data?.data ?? {};
 
         setExamTypes(fetchedExamTypes);
         setMockFormats(fetchedFormats);
+        const activeSessionId = activeSessionRes.data?.data?.session_id;
+        setActiveSessionId(activeSessionId ? String(activeSessionId) : null);
 
-        console.log(
-          "MOCK: Configuration loaded successfully.",
-        );
+        console.log("MOCK: Configuration loaded successfully.");
 
         // ---------------------------------------------------------------------
         // Initial subject loading
@@ -342,10 +413,7 @@ export default function MockSetupScreen() {
           return;
         }
 
-        console.warn(
-          "MOCK CONFIG ERROR:",
-          e?.response?.data ?? e,
-        );
+        console.warn("MOCK CONFIG ERROR:", e?.response?.data ?? e);
 
         let message =
           "Failed to load configuration. Please check your network connection.";
@@ -392,8 +460,7 @@ export default function MockSetupScreen() {
   useEffect(() => {
     const isConnected = netInfo.isConnected === true;
 
-    const wasDisconnected =
-      previousConnectionRef.current === false;
+    const wasDisconnected = previousConnectionRef.current === false;
 
     previousConnectionRef.current = netInfo.isConnected;
 
@@ -415,20 +482,13 @@ export default function MockSetupScreen() {
       return;
     }
 
-    console.log(
-      "MOCK: Network restored. Refreshing configuration...",
-    );
+    console.log("MOCK: Network restored. Refreshing configuration...");
 
     fetchConfig({
       showLoader: false,
       preserveSelection: true,
     });
-  }, [
-    netInfo.isConnected,
-    isAllowed,
-    isChecking,
-    fetchConfig,
-  ]);
+  }, [netInfo.isConnected, isAllowed, isChecking, fetchConfig]);
 
   // ---------------------------------------------------------------------------
   // Load subjects whenever exam type changes
@@ -451,15 +511,10 @@ export default function MockSetupScreen() {
       try {
         setIsUpdatingSelection(true);
 
-        await fetchSubjectsForExamType(
-          selectedExamType.id,
-        );
+        await fetchSubjectsForExamType(selectedExamType.id);
       } catch (e) {
         if (!cancelled) {
-          console.warn(
-            "Failed to sync subjects:",
-            e,
-          );
+          console.warn("Failed to sync subjects:", e);
         }
       } finally {
         if (!cancelled && mountedRef.current) {
@@ -473,10 +528,7 @@ export default function MockSetupScreen() {
     return () => {
       cancelled = true;
     };
-  }, [
-    selectedExamType,
-    fetchSubjectsForExamType,
-  ]);
+  }, [selectedExamType, fetchSubjectsForExamType]);
 
   // ---------------------------------------------------------------------------
   // Subject selection
@@ -485,115 +537,103 @@ export default function MockSetupScreen() {
   const toggleSubject = useCallback(
     (subject: Subject) => {
       setSelectedSubjects((previous) => {
-        const alreadySelected = previous.some(
-          (item) => item.id === subject.id,
-        );
+        const alreadySelected = previous.some((item) => item.id === subject.id);
 
         if (alreadySelected) {
-          return previous.filter(
-            (item) => item.id !== subject.id,
-          );
+          return previous.filter((item) => item.id !== subject.id);
         }
 
-        if (previous.length >= MAX_SUBJECTS) {
+        if (subjectLimit !== null && previous.length >= subjectLimit) {
           return previous;
         }
 
         return [...previous, subject];
       });
     },
-    [],
+    [subjectLimit],
   );
+
+  const selectExamType = (examType: ExamType) => {
+    if (selectedExamType?.id === examType.id) {
+      return;
+    }
+
+    setSelectedExamType(examType);
+    setSelectedSubjects([]);
+  };
 
   // ---------------------------------------------------------------------------
   // Start mock exam
   // ---------------------------------------------------------------------------
 
-  const startMock = useCallback(async () => {
-    if (!selectedExamType) {
-      return;
-    }
-
-    if (selectedSubjects.length === 0) {
-      return;
-    }
-
-    try {
-      setIsPreparing(true);
-      setPrepareStatus("Creating mock session...");
-      setError(null);
-
-      const payload = {
-        exam_type_id: selectedExamType.id,
-        subject_ids: selectedSubjects.map(
-          (subject) => subject.id,
-        ),
-        year: null,
-        shuffle: true,
-      };
-
-      console.log(
-        "MOCK: Creating session...",
-        payload,
-      );
-
-      const response = await api.post(
-        "/mock/sessions",
-        payload,
-      );
-
-      const sessionData = response.data?.data;
-
-      const sessionId =
-        sessionData?.mock_session_id ??
-        sessionData?.session_id;
-
-      if (!sessionId) {
-        throw new Error(
-          "Failed to create a mock session ID.",
-        );
+  const startMock = useCallback(
+    async (mockGroupId?: number) => {
+      if (!selectedExamType) {
+        return;
       }
 
-      // Store complete session data for the quiz screen.
-      await storage.setItem(
-        `mock_session_${sessionId}`,
-        JSON.stringify(sessionData),
-      );
-
-      console.log(
-        "MOCK: Session created:",
-        sessionId,
-      );
-
-      router.push(`/mock/${sessionId}`);
-    } catch (e: any) {
-      console.warn(
-        "MOCK: Failed to start:",
-        e?.response?.data ?? e,
-      );
-
-      const message =
-        e?.response?.data?.message ??
-        e?.message ??
-        "An unknown error occurred.";
-
-      Alert.alert(
-        "Failed to Start Mock Exam",
-        message,
-      );
-
-      setError(message);
-    } finally {
-      if (mountedRef.current) {
-        setIsPreparing(false);
-        setPrepareStatus(null);
+      if (selectedSubjects.length === 0) {
+        return;
       }
+
+      try {
+        setIsPreparing(true);
+        setPrepareStatus("Creating mock session...");
+        setError(null);
+
+        const payload = {
+          exam_type_id: selectedExamType.id,
+          subject_ids: selectedSubjects.map((subject) => subject.id),
+          year: null,
+          shuffle: true,
+          ...(mockGroupId ? { mock_group_id: mockGroupId } : {}),
+        };
+
+        console.log("MOCK: Creating session...", payload);
+
+        const response = await api.post("/mock/sessions", payload);
+
+        const sessionData = response.data?.data;
+
+        const sessionId =
+          sessionData?.mock_session_id ?? sessionData?.session_id;
+
+        if (!sessionId) {
+          throw new Error("Failed to create a mock session ID.");
+        }
+
+        await storage.setItem("active_mock_session", String(sessionId));
+        setActiveSessionId(String(sessionId));
+
+        console.log("MOCK: Session created:", sessionId);
+
+        router.push(`/mock/${sessionId}`);
+      } catch (e: any) {
+        console.warn("MOCK: Failed to start:", e?.response?.data ?? e);
+
+        const message =
+          e?.response?.data?.message ??
+          e?.message ??
+          "An unknown error occurred.";
+
+        Alert.alert("Failed to Start Mock Exam", message);
+
+        setError(message);
+      } finally {
+        if (mountedRef.current) {
+          setIsPreparing(false);
+          setPrepareStatus(null);
+        }
+      }
+    },
+    [selectedExamType, selectedSubjects, router],
+  );
+
+  const resumeMock = () => {
+    if (activeSessionId) {
+      router.push(`/mock/${activeSessionId}`);
     }
-  }, [
-    selectedExamType,
-    selectedSubjects,
-    router,
-  ]);
+  };
 
   // ---------------------------------------------------------------------------
   // Rendering: authentication/subscription check
@@ -602,10 +642,7 @@ export default function MockSetupScreen() {
   if (isChecking) {
     return (
       <View className="flex-1 items-center justify-center bg-neutral-50 dark:bg-neutral-950 px-8">
-        <ActivityIndicator
-          size="large"
-          color="#4f46e5"
-        />
+        <ActivityIndicator size="large" color="#4f46e5" />
 
         <BodyText className="mt-4 text-center text-neutral-900 dark:text-neutral-400">
           Checking your subscription...
@@ -619,11 +656,7 @@ export default function MockSetupScreen() {
   // ---------------------------------------------------------------------------
 
   if (!isAllowed) {
-    return (
-      <SubscriptionGuardView
-        featureName="Mock Exams"
-      />
-    );
+    return <SubscriptionGuardView featureName="Mock Exams" />;
   }
 
   // ---------------------------------------------------------------------------
@@ -633,10 +666,7 @@ export default function MockSetupScreen() {
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-neutral-50 dark:bg-neutral-950">
-        <ActivityIndicator
-          size="large"
-          color="#4f46e5"
-        />
+        <ActivityIndicator size="large" color="#4f46e5" />
 
         <BodyText className="mt-4 text-neutral-900 dark:text-neutral-400">
           Loading options...
@@ -652,11 +682,7 @@ export default function MockSetupScreen() {
   if (error) {
     return (
       <View className="flex-1 items-center justify-center bg-neutral-50 dark:bg-neutral-950 px-8">
-        <MaterialIcons
-          name="cloud-off"
-          size={48}
-          color="#a1a1aa"
-        />
+        <MaterialIcons name="cloud-off" size={48} color="#a1a1aa" />
 
         <BodyText className="mt-4 text-center text-neutral-900 dark:text-neutral-400">
           {error}
@@ -686,17 +712,14 @@ export default function MockSetupScreen() {
     <View className="flex-1 bg-neutral-50 dark:bg-neutral-950">
       {/* Header */}
       <View className="pt-16 pb-6 px-6 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
-        <Heading
-          size="xl"
-          className="mb-2"
-        >
+        <Heading size="xl" className="mb-2">
           Mock Exam Setup
         </Heading>
 
         <BodyText className="text-neutral-900 dark:text-neutral-400">
-          Choose exam type and up to{" "}
-          {MAX_SUBJECTS} subjects for a full mock
-          experience.
+          {subjectLimit
+            ? `Choose an exam type and up to ${subjectLimit} subjects for a full mock.`
+            : "Choose an exam type and subjects for a full mock."}
         </BodyText>
       </View>
 
@@ -709,19 +732,13 @@ export default function MockSetupScreen() {
         }}
       >
         {/* Exam Type */}
-        <Subheading
-          size="md"
-          className="mb-3 px-2"
-        >
+        <Subheading size="md" className="mb-3 px-2">
           Select Exam Type
         </Subheading>
 
         {isUpdatingSelection ? (
           <View className="flex-row items-center px-2 mb-3">
-            <ActivityIndicator
-              size="small"
-              color="#4f46e5"
-            />
+            <ActivityIndicator size="small" color="#4f46e5" />
 
             <Caption className="ml-2 text-neutral-500 dark:text-neutral-400">
               Updating exam type options...
@@ -734,13 +751,9 @@ export default function MockSetupScreen() {
             <Button
               key={examType.id}
               variant={
-                selectedExamType?.id === examType.id
-                  ? "primary"
-                  : "outline"
+                selectedExamType?.id === examType.id ? "primary" : "outline"
               }
-              onPress={() => {
-                setSelectedExamType(examType);
-              }}
+              onPress={() => selectExamType(examType)}
               disabled={isUpdatingSelection}
               size="sm"
               style={{
@@ -754,11 +767,10 @@ export default function MockSetupScreen() {
         </View>
 
         {/* Subjects */}
-        <Subheading
-          size="md"
-          className="mb-3 px-2"
-        >
-          Select Subjects (max {MAX_SUBJECTS})
+        <Subheading size="md" className="mb-3 px-2">
+          {subjectLimit
+            ? `Select Subjects (up to ${subjectLimit})`
+            : "Select Subjects"}
         </Subheading>
 
         {!selectedExamType ? (
@@ -768,59 +780,99 @@ export default function MockSetupScreen() {
             className="mx-2 mb-6 bg-white dark:bg-neutral-900"
           >
             <Caption className="text-neutral-500 dark:text-neutral-400">
-              Select an exam type to load available
-              subjects.
+              Select an exam type to load available subjects.
             </Caption>
           </Card>
         ) : null}
 
         <View className="flex-row flex-wrap px-2 mb-6">
           {subjects.map((subject) => {
-            const selected =
-              selectedSubjects.some(
-                (item) => item.id === subject.id,
-              );
+            const selected = selectedSubjects.some(
+              (item) => item.id === subject.id,
+            );
 
             const canSelect =
-              selectedSubjects.length <
-              MAX_SUBJECTS ||
+              subjectLimit === null ||
+              selectedSubjects.length < subjectLimit ||
               selected;
 
             return (
-              <Button
-                key={subject.id}
-                variant={
-                  selected ? "primary" : "outline"
-                }
-                onPress={() =>
-                  toggleSubject(subject)
-                }
-                disabled={
-                  !canSelect || isUpdatingSelection
-                }
-                size="sm"
-                style={{
-                  marginRight: 12,
-                  marginBottom: 12,
-                }}
-              >
-                {subject.name}
-              </Button>
+              <View key={subject.id} className="mr-3 mb-3 items-start">
+                <Button
+                  variant={selected ? "primary" : "outline"}
+                  onPress={() => toggleSubject(subject)}
+                  disabled={!canSelect || isUpdatingSelection}
+                  size="sm"
+                >
+                  {subject.name}
+                </Button>
+                <Caption className="mt-1 px-1 text-neutral-500 dark:text-neutral-400">
+                  {getSubjectSpec(subject).questions} questions
+                  {getSubjectSpec(subject).time
+                    ? ` · ${getSubjectSpec(subject).time} min`
+                    : ""}
+                </Caption>
+              </View>
             );
           })}
         </View>
 
-        {selectedExamType &&
-          !isUpdatingSelection &&
-          subjects.length === 0 ? (
+        {selectedSubjects.length > 0 ? (
+          <Card
+            variant="bordered"
+            padding="md"
+            className="mx-2 mb-6 bg-white dark:bg-neutral-900"
+          >
+            <Subheading size="sm" className="mb-3">
+              Mock Summary
+            </Subheading>
+            {selectedSubjects.map((subject) => {
+              const specification = getSubjectSpec(subject);
+
+              return (
+                <View
+                  key={subject.id}
+                  className="flex-row items-center justify-between py-1"
+                >
+                  <Caption className="flex-1 text-neutral-700 dark:text-neutral-300">
+                    {subject.name}
+                  </Caption>
+                  <Caption className="text-neutral-600 dark:text-neutral-400">
+                    {specification.questions} questions
+                    {specification.time ? ` · ${specification.time} min` : ""}
+                  </Caption>
+                </View>
+              );
+            })}
+            <View className="mt-2 border-t border-neutral-200 pt-3 dark:border-neutral-700">
+              <View className="flex-row justify-between">
+                <Caption className="text-neutral-600 dark:text-neutral-400">
+                  Total questions
+                </Caption>
+                <Caption className="font-semibold text-neutral-900 dark:text-neutral-100">
+                  {totalQuestions}
+                </Caption>
+              </View>
+              <View className="mt-1 flex-row justify-between">
+                <Caption className="text-neutral-600 dark:text-neutral-400">
+                  Time allowed
+                </Caption>
+                <Caption className="font-semibold text-neutral-900 dark:text-neutral-100">
+                  {totalTime} min
+                </Caption>
+              </View>
+            </View>
+          </Card>
+        ) : null}
+
+        {selectedExamType && !isUpdatingSelection && subjects.length === 0 ? (
           <Card
             variant="bordered"
             padding="md"
             className="mx-2 mb-6 bg-white dark:bg-neutral-900"
           >
             <Caption className="text-neutral-500 dark:text-neutral-400">
-              No subjects are currently mapped to
-              this exam type.
+              No subjects are currently mapped to this exam type.
             </Caption>
           </Card>
         ) : null}
@@ -830,10 +882,7 @@ export default function MockSetupScreen() {
       <View className="absolute bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-neutral-950/90 backdrop-blur-lg border-t border-neutral-200 dark:border-neutral-800">
         {isPreparing && prepareStatus ? (
           <View className="flex-row items-center mb-3">
-            <ActivityIndicator
-              size="small"
-              color="#4f46e5"
-            />
+            <ActivityIndicator size="small" color="#4f46e5" />
 
             <Caption className="ml-2 text-neutral-700 dark:text-neutral-300">
               {prepareStatus}
@@ -841,21 +890,125 @@ export default function MockSetupScreen() {
           </View>
         ) : null}
 
-        <Button
-          onPress={startMock}
-          disabled={
-            !selectedExamType ||
-            selectedSubjects.length === 0 ||
-            isPreparing
-          }
-          loading={isPreparing}
-          size="lg"
-          variant="primary"
-          fullWidth
-        >
-          Start Mock Exam
-        </Button>
+        <View className="gap-2">
+          {activeSessionId ? (
+            <Button onPress={resumeMock} size="md" variant="outline" fullWidth>
+              Resume In-Progress Mock
+            </Button>
+          ) : null}
+
+          {selectedSubjects.length === 1 ? (
+            <Button
+              onPress={browseMockGroups}
+              disabled={!selectedExamType || isPreparing || isLoadingGroups}
+              loading={isLoadingGroups}
+              size="md"
+              variant="outline"
+              fullWidth
+            >
+              Browse Mock Batches
+            </Button>
+          ) : null}
+
+          <Button
+            onPress={() => startMock()}
+            disabled={
+              !selectedExamType || selectedSubjects.length === 0 || isPreparing
+            }
+            loading={isPreparing}
+            size="lg"
+            variant="primary"
+            fullWidth
+          >
+            {selectedSubjects.length === 1
+              ? "Start Full Mock"
+              : "Start Mock Exam"}
+          </Button>
+        </View>
       </View>
+
+      <Modal
+        visible={showBatchPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowBatchPicker(false)}
+      >
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="max-h-[82%] rounded-t-3xl bg-white px-5 pb-8 pt-5 dark:bg-neutral-900">
+            <View className="mb-4 flex-row items-center justify-between">
+              <View>
+                <Heading size="lg">Mock Batches</Heading>
+                <Caption className="text-neutral-500 dark:text-neutral-400">
+                  {selectedSubjects[0]?.name}
+                </Caption>
+              </View>
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() => setShowBatchPicker(false)}
+              >
+                Close
+              </Button>
+            </View>
+
+            {isLoadingGroups ? (
+              <View className="items-center py-10">
+                <ActivityIndicator size="large" color="#4f46e5" />
+              </View>
+            ) : mockGroups.length === 0 ? (
+              <Caption className="py-10 text-center text-neutral-500 dark:text-neutral-400">
+                No mock batches are available for this subject yet.
+              </Caption>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View className="gap-3">
+                  {mockGroups.map((group) => (
+                    <Card
+                      key={group.id}
+                      variant="bordered"
+                      padding="md"
+                      className="bg-white dark:bg-neutral-950"
+                    >
+                      <View className="mb-3 flex-row items-start justify-between gap-3">
+                        <View>
+                          <Subheading size="md">
+                            Mock {group.batch_number}
+                          </Subheading>
+                          <Caption className="mt-1 text-neutral-500 dark:text-neutral-400">
+                            {group.total_questions} questions · Approx. 60 min
+                          </Caption>
+                        </View>
+                        {group.is_completed ? (
+                          <Caption className="text-green-700 dark:text-green-400">
+                            {group.best_score !== null
+                              ? `Best ${Number(group.best_score).toFixed(1)}%`
+                              : "Completed"}
+                          </Caption>
+                        ) : null}
+                      </View>
+                      <Button
+                        onPress={() => {
+                          setShowBatchPicker(false);
+                          startMock(group.id);
+                        }}
+                        disabled={isPreparing}
+                        loading={isPreparing}
+                        size="md"
+                        variant="primary"
+                        fullWidth
+                      >
+                        {group.is_completed
+                          ? `Retake Mock ${group.batch_number}`
+                          : `Start Mock ${group.batch_number}`}
+                      </Button>
+                    </Card>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
