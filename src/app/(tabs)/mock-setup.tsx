@@ -27,7 +27,6 @@ import {
 } from "@/components/Typography";
 
 import api from "@/lib/api";
-import { storage } from "@/lib/storage";
 
 // -----------------------------------------------------------------------------
 // Types
@@ -139,8 +138,6 @@ export default function MockSetupScreen() {
   );
 
   const [selectedSubjects, setSelectedSubjects] = useState<Subject[]>([]);
-
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const [showBatchPicker, setShowBatchPicker] = useState(false);
   const [mockGroups, setMockGroups] = useState<MockGroup[]>([]);
@@ -363,16 +360,12 @@ export default function MockSetupScreen() {
 
         const signal = createTimeoutSignal(CONFIG_TIMEOUT);
 
-        const [examRes, formatsRes, activeSessionRes] = await Promise.all([
+        const [examRes, formatsRes] = await Promise.all([
           api.get("/config/exam-types", {
             ...(signal ? { signal } : {}),
           }),
 
           api.get("/config/mock-formats", {
-            ...(signal ? { signal } : {}),
-          }),
-
-          api.get("/mock/sessions/active", {
             ...(signal ? { signal } : {}),
           }),
         ]);
@@ -389,8 +382,6 @@ export default function MockSetupScreen() {
 
         setExamTypes(fetchedExamTypes);
         setMockFormats(fetchedFormats);
-        const activeSessionId = activeSessionRes.data?.data?.session_id;
-        setActiveSessionId(activeSessionId ? String(activeSessionId) : null);
 
         console.log("MOCK: Configuration loaded successfully.");
 
@@ -602,9 +593,6 @@ export default function MockSetupScreen() {
           throw new Error("Failed to create a mock session ID.");
         }
 
-        await storage.setItem("active_mock_session", String(sessionId));
-        setActiveSessionId(String(sessionId));
-
         console.log("MOCK: Session created:", sessionId);
 
         router.push(`/mock/${sessionId}`);
@@ -628,12 +616,6 @@ export default function MockSetupScreen() {
     },
     [selectedExamType, selectedSubjects, router],
   );
-
-  const resumeMock = () => {
-    if (activeSessionId) {
-      router.push(`/mock/${activeSessionId}`);
-    }
-  };
 
   // ---------------------------------------------------------------------------
   // Rendering: authentication/subscription check
@@ -891,12 +873,6 @@ export default function MockSetupScreen() {
         ) : null}
 
         <View className="gap-2">
-          {activeSessionId ? (
-            <Button onPress={resumeMock} size="md" variant="outline" fullWidth>
-              Resume In-Progress Mock
-            </Button>
-          ) : null}
-
           {selectedSubjects.length === 1 ? (
             <Button
               onPress={browseMockGroups}

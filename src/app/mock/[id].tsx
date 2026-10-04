@@ -4,11 +4,13 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  Alert,
+  Alert as NativeAlert,
+  Platform,
   Modal,
   ActivityIndicator,
   useWindowDimensions,
   Animated,
+  AppState,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
@@ -19,7 +21,37 @@ import { Heading, BodyText, Caption } from "@/components/Typography";
 import { Button } from "@/components";
 import { AutoHeightWebView } from "@/components/AutoHeightWebView";
 import api from "@/lib/api";
-import { storage } from "@/lib/storage";
+
+// react-native-web's Alert.alert is a no-op, so fall back to window dialogs.
+const Alert = {
+  alert: (
+    title: string,
+    message?: string,
+    buttons?: Array<{
+      text?: string;
+      style?: string;
+      onPress?: () => void;
+    }>,
+  ) => {
+    if (Platform.OS !== "web") {
+      NativeAlert.alert(title, message, buttons as any);
+      return;
+    }
+
+    const text = [title, message].filter(Boolean).join("\n\n");
+    const actionable = (buttons ?? []).filter((b) => b.style !== "cancel");
+
+    if (buttons && buttons.some((b) => b.style === "cancel")) {
+      if (window.confirm(text)) {
+        actionable[0]?.onPress?.();
+      }
+      return;
+    }
+
+    window.alert(text);
+    actionable[0]?.onPress?.();
+  },
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -140,6 +172,8 @@ const getShortSubjectName = (name?: string | null): string => {
 const getOptionLabel = (index: number): string =>
   String.fromCharCode(65 + index);
 
+const QUESTION_BATCH_SIZE = 5;
+
 const formatTime = (seconds: number): string => {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -168,6 +202,23 @@ const restoreAnswers = (
 
   return answersBySubject;
 };
+
+const normalizeQuestionsBySubject = (
+  questionsBySubject: Record<string, Question[]> | Record<number, Question[]>,
+): Record<number, Question[]> =>
+  Object.fromEntries(
+    Object.entries(questionsBySubject).map(([subjectId, questions]) => [
+      Number(subjectId),
+      questions.map((question) => ({
+        ...question,
+        id: Number(question.id),
+        options: question.options.map((option) => ({
+          ...option,
+          id: Number(option.id),
+        })),
+      })),
+    ]),
+  );
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -261,6 +312,7 @@ export default function MockQuizScreen() {
   const [questionsBySubject, setQuestionsBySubject] = useState<
     Record<number, Question[]>
   >({});
+  const [isLoadingQuestionBatch, setIsLoadingQuestionBatch] = useState(false);
 
   const [currentSubjectIndex, setCurrentSubjectIndex] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -272,6 +324,7 @@ export default function MockQuizScreen() {
   const [timerActive, setTimerActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [progressSaveError, setProgressSaveError] = useState(false);
+  const [isAutosaving, setIsAutosaving] = useState(false);
 
   const [showResults, setShowResults] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -288,6 +341,9 @@ export default function MockQuizScreen() {
   const progressQueueRef = useRef<Promise<void>>(Promise.resolve());
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const timerPulseAnim = useRef(new Animated.Value(1)).current;
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasUnsavedChangesRef = useRef(false);
+  const isLoadingQuestionBatchRef = useRef(false);
 
   // ── Load session + questions ──────────────────────────────────────────────────
 
@@ -301,7 +357,7 @@ export default function MockQuizScreen() {
           throw new Error("No mock session ID provided.");
         }
 
-        setLoadingStatus("Loading your saved mock session...");
+        setLoadingStatus("Starting your mock exam...");
         const response = await api.get(`/mock/sessions/${id}`);
         const sessionData: SessionData | undefined = response.data?.data;
         if (!sessionData) {
@@ -311,18 +367,17 @@ export default function MockQuizScreen() {
         setSession(sessionData);
 
         const subjects = sessionData.subjects ?? [];
+        const isCompleted = sessionData.status === "completed";
         setSubjectsData(subjects);
-        const fetchedQuestions = Object.fromEntries(
-          Object.entries(sessionData.questions_by_subject ?? {}).map(
-            ([subjectId, questions]) => [Number(subjectId), questions],
-          ),
-        ) as Record<number, Question[]>;
+        const fetchedQuestions = normalizeQuestionsBySubject(
+          sessionData.questions_by_subject ?? {},
+        );
         setQuestionsBySubject(fetchedQuestions);
         setUserAnswers(
           restoreAnswers(
             subjects,
             fetchedQuestions,
-            sessionData.answers_by_question ?? {},
+            isCompleted ? (sessionData.answers_by_question ?? {}) : {},
           ),
         );
         setTimeRemaining(
@@ -335,9 +390,9 @@ export default function MockQuizScreen() {
             ),
           ),
         );
-        await storage.setItem("active_mock_session", String(id));
-
-        let globalQuestionIndex = sessionData.current_question_index ?? 0;
+        let globalQuestionIndex = isCompleted
+          ? (sessionData.current_question_index ?? 0)
+          : 0;
         for (
           let subjectIndex = 0;
           subjectIndex < subjects.length;
@@ -358,11 +413,10 @@ export default function MockQuizScreen() {
           globalQuestionIndex -= questionCount;
         }
 
-        if (sessionData.status === "completed") {
+        if (isCompleted) {
           setScores(sessionData.scores_by_subject ?? {});
           setShowResults(true);
           setTimerActive(false);
-          storage.deleteItem("active_mock_session").catch(() => {});
         } else {
           setTimerActive(true);
         }
@@ -429,6 +483,53 @@ export default function MockQuizScreen() {
     }
   }, [timeRemaining < 300]);
 
+  // ── Debounced autosave to server (every 10 seconds) ─────────────────────────────
+
+  useEffect(() => {
+    // Clear any existing timer
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+
+    // Only set timer if we have unsaved changes and not showing results
+    if (!hasUnsavedChangesRef.current || showResults) {
+      return;
+    }
+
+    // Set new timer for 10 seconds
+    autosaveTimerRef.current = setTimeout(() => {
+      saveToServer();
+    }, 10000);
+
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+      }
+    };
+  }, [currentSubjectIndex, currentQuestionIndex, userAnswers, showResults]);
+
+  // ── Save to server on app background/blur ─────────────────────────────────────
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === "background" || nextAppState === "inactive") {
+        // Save immediately when app goes to background
+        if (hasUnsavedChangesRef.current) {
+          saveToServer();
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange,
+    );
+
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
+
   // ── Helpers ───────────────────────────────────────────────────────────────────
 
   const getCurrentSubjectId = (): number =>
@@ -459,7 +560,23 @@ export default function MockQuizScreen() {
     );
 
   const getTotalQuestions = (): number =>
-    Object.values(questionsBySubject).reduce((sum, qs) => sum + qs.length, 0);
+    Number(
+      session?.total_questions ??
+        subjectsData.reduce(
+          (total, subject) => total + Number(subject.question_count ?? 0),
+          0,
+        ),
+    );
+
+  const getSubjectQuestionCount = (subjectIndex: number): number => {
+    const subject = subjectsData[subjectIndex];
+
+    return Number(
+      subject?.question_count ??
+        questionsBySubject[subject?.id ?? 0]?.length ??
+        0,
+    );
+  };
 
   // ── Actions ───────────────────────────────────────────────────────────────────
 
@@ -470,10 +587,121 @@ export default function MockQuizScreen() {
     subjectsData
       .slice(0, subjectIndex)
       .reduce(
-        (total, subject) =>
-          total + (questionsBySubject[subject.id]?.length ?? 0),
+        (total, subject) => total + Number(subject.question_count ?? 0),
         0,
       ) + questionIndex;
+
+  const loadQuestionsThrough = async (
+    subjectIndex: number,
+    questionIndex: number,
+  ): Promise<boolean> => {
+    const subject = subjectsData[subjectIndex];
+    if (
+      !id ||
+      !subject ||
+      questionIndex >= getSubjectQuestionCount(subjectIndex)
+    ) {
+      return false;
+    }
+
+    if (questionsBySubject[subject.id]?.[questionIndex]) {
+      return true;
+    }
+
+    if (isLoadingQuestionBatchRef.current) {
+      return false;
+    }
+
+    isLoadingQuestionBatchRef.current = true;
+    setIsLoadingQuestionBatch(true);
+
+    try {
+      const pageOffset =
+        Math.floor(questionIndex / QUESTION_BATCH_SIZE) * QUESTION_BATCH_SIZE;
+
+      const response = await api.get(
+        `/mock/sessions/${id}/subjects/${subject.id}/questions/${pageOffset}`,
+      );
+      const batchData: SessionData | undefined = response.data?.data;
+
+      if (!batchData) {
+        throw new Error("Question batch was not returned.");
+      }
+
+      if (batchData.status === "completed") {
+        const completedQuestions = normalizeQuestionsBySubject(
+          batchData.questions_by_subject ?? {},
+        );
+        setSession(batchData);
+        setQuestionsBySubject(completedQuestions);
+        setUserAnswers(
+          restoreAnswers(
+            batchData.subjects ?? subjectsData,
+            completedQuestions,
+            batchData.answers_by_question ?? {},
+          ),
+        );
+        setScores(batchData.scores_by_subject ?? {});
+        setShowResults(true);
+        setTimerActive(false);
+
+        return false;
+      }
+
+      const batchQuestions = normalizeQuestionsBySubject(
+        batchData.questions_by_subject ?? {},
+      );
+      const subjectBatch = batchQuestions[subject.id] ?? [];
+
+      if (subjectBatch.length === 0) {
+        throw new Error("No more questions are available for this mock.");
+      }
+
+      setQuestionsBySubject((previous) => {
+        const updatedQuestions = [...(previous[subject.id] ?? [])];
+        subjectBatch.forEach((question, index) => {
+          updatedQuestions[pageOffset + index] = question;
+        });
+
+        return { ...previous, [subject.id]: updatedQuestions };
+      });
+
+      return true;
+    } catch (loadError: any) {
+      Alert.alert(
+        "Unable to Load Questions",
+        loadError?.response?.data?.message ??
+          loadError?.message ??
+          "Check your connection and try again.",
+      );
+
+      return false;
+    } finally {
+      isLoadingQuestionBatchRef.current = false;
+      setIsLoadingQuestionBatch(false);
+    }
+  };
+
+  const prefetchNextQuestionPage = (
+    subjectIndex: number,
+    questionIndex: number,
+  ): void => {
+    const subject = subjectsData[subjectIndex];
+    const nextPageOffset =
+      (Math.floor(questionIndex / QUESTION_BATCH_SIZE) + 1) *
+      QUESTION_BATCH_SIZE;
+
+    if (
+      !subject ||
+      questionIndex < nextPageOffset - 3 ||
+      nextPageOffset >= getSubjectQuestionCount(subjectIndex) ||
+      questionsBySubject[subject.id]?.[nextPageOffset]
+    ) {
+      return;
+    }
+
+    void loadQuestionsThrough(subjectIndex, nextPageOffset);
+  };
 
   const saveProgress = (
     subjectIndex: number,
@@ -485,30 +713,51 @@ export default function MockQuizScreen() {
       return Promise.resolve();
     }
 
-    const payload: {
-      current_question_index: number;
-      question_id?: number;
-      option_id?: number | null;
-    } = {
-      current_question_index: getGlobalQuestionIndex(
-        subjectIndex,
-        questionIndex,
-      ),
-    };
-    if (questionId !== undefined) {
-      payload.question_id = questionId;
-      payload.option_id = optionId ?? null;
+    // Mark that we have unsaved changes
+    hasUnsavedChangesRef.current = true;
+
+    // Debounced server save (will be triggered by useEffect)
+    return Promise.resolve();
+  };
+
+  const saveToServer = async (): Promise<void> => {
+    if (!id || !hasUnsavedChangesRef.current) {
+      return;
     }
 
-    progressQueueRef.current = progressQueueRef.current
-      .then(() => api.put(`/mock/sessions/${id}/progress`, payload))
-      .then(() => setProgressSaveError(false))
-      .catch((saveError) => {
-        console.warn("Failed to save mock progress:", saveError);
-        setProgressSaveError(true);
-      });
+    setIsAutosaving(true);
 
-    return progressQueueRef.current;
+    try {
+      const payload: {
+        current_question_index: number;
+        answers?: Record<number, number | null>;
+      } = {
+        current_question_index: getGlobalQuestionIndex(
+          currentSubjectIndex,
+          currentQuestionIndex,
+        ),
+      };
+
+      // Convert answers from subject/question format to question_id format
+      const answersByQuestion: Record<number, number | null> = {};
+      for (const subject of subjectsData) {
+        const questions = questionsBySubject[subject.id] ?? [];
+        const answers = userAnswers[subject.id] ?? {};
+        questions.forEach((question, index) => {
+          answersByQuestion[question.id] = answers[index] ?? null;
+        });
+      }
+      payload.answers = answersByQuestion;
+
+      await api.put(`/mock/sessions/${id}/progress`, payload);
+      setProgressSaveError(false);
+      hasUnsavedChangesRef.current = false;
+    } catch (saveError) {
+      console.warn("Failed to save mock progress to server:", saveError);
+      setProgressSaveError(true);
+    } finally {
+      setIsAutosaving(false);
+    }
   };
 
   const selectAnswer = (optionId: number) => {
@@ -542,51 +791,90 @@ export default function MockQuizScreen() {
     ]).start();
   };
 
-  const switchSubject = (index: number) => {
+  const switchSubject = async (index: number) => {
+    if (
+      isLoadingQuestionBatchRef.current ||
+      !(await loadQuestionsThrough(index, 0))
+    ) {
+      return;
+    }
+
     setCurrentSubjectIndex(index);
     setCurrentQuestionIndex(0);
     saveProgress(index, 0);
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
 
-  const nextQuestion = () => {
-    const maxIndex = getCurrentQuestions().length - 1;
+  const nextQuestion = async () => {
+    if (isLoadingQuestionBatchRef.current) {
+      return;
+    }
+
     let nextSubjectIndex = currentSubjectIndex;
-    let nextQuestionIndex = currentQuestionIndex;
-    if (currentQuestionIndex < maxIndex) {
-      nextQuestionIndex++;
-    } else if (currentSubjectIndex < subjectsData.length - 1) {
+    let nextQuestionIndex = currentQuestionIndex + 1;
+
+    if (nextQuestionIndex >= getSubjectQuestionCount(currentSubjectIndex)) {
+      if (currentSubjectIndex >= subjectsData.length - 1) {
+        return;
+      }
+
       nextSubjectIndex++;
       nextQuestionIndex = 0;
     }
+
+    if (!(await loadQuestionsThrough(nextSubjectIndex, nextQuestionIndex))) {
+      return;
+    }
+
     setCurrentSubjectIndex(nextSubjectIndex);
     setCurrentQuestionIndex(nextQuestionIndex);
     saveProgress(nextSubjectIndex, nextQuestionIndex);
+    prefetchNextQuestionPage(nextSubjectIndex, nextQuestionIndex);
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
 
-  const previousQuestion = () => {
+  const previousQuestion = async () => {
+    if (isLoadingQuestionBatchRef.current) {
+      return;
+    }
+
     let previousSubjectIndex = currentSubjectIndex;
     let previousQuestionIndex = currentQuestionIndex;
     if (currentQuestionIndex > 0) {
       previousQuestionIndex--;
     } else if (currentSubjectIndex > 0) {
       previousSubjectIndex--;
-      const prevSubjectId = subjectsData[currentSubjectIndex - 1]?.id;
-      const prevQuestions = questionsBySubject[prevSubjectId] ?? [];
-      previousQuestionIndex = Math.max(prevQuestions.length - 1, 0);
+      previousQuestionIndex = getSubjectQuestionCount(previousSubjectIndex) - 1;
     }
+
+    if (
+      !(await loadQuestionsThrough(previousSubjectIndex, previousQuestionIndex))
+    ) {
+      return;
+    }
+
     setCurrentSubjectIndex(previousSubjectIndex);
     setCurrentQuestionIndex(previousQuestionIndex);
     saveProgress(previousSubjectIndex, previousQuestionIndex);
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
 
-  const jumpToQuestion = (subjectIndex: number, questionIndex: number) => {
+  const jumpToQuestion = async (
+    subjectIndex: number,
+    questionIndex: number,
+  ) => {
+    if (
+      isLoadingQuestionBatchRef.current ||
+      !(await loadQuestionsThrough(subjectIndex, questionIndex))
+    ) {
+      return;
+    }
+
     setCurrentSubjectIndex(subjectIndex);
     setCurrentQuestionIndex(questionIndex);
     setShowQuestionNavigator(false);
     saveProgress(subjectIndex, questionIndex);
+    prefetchNextQuestionPage(subjectIndex, questionIndex);
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
 
@@ -596,6 +884,18 @@ export default function MockQuizScreen() {
     }
 
     setIsSubmitting(true);
+
+    // Clear autosave timer
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+
+    // Flush any pending changes to server before submit
+    if (hasUnsavedChangesRef.current) {
+      await saveToServer();
+    }
+
     const answersByQuestion: Record<number, number | null> = {};
     for (const subject of subjectsData) {
       const questions = questionsBySubject[subject.id] ?? [];
@@ -606,7 +906,6 @@ export default function MockQuizScreen() {
     }
 
     try {
-      await progressQueueRef.current;
       const response = await api.post(`/mock/sessions/${id}/submit`, {
         answers: answersByQuestion,
         current_question_index: getGlobalQuestionIndex(
@@ -616,11 +915,9 @@ export default function MockQuizScreen() {
       });
       const result: SessionData = response.data?.data;
       const resultSubjects = result.subjects ?? subjectsData;
-      const resultQuestions = Object.fromEntries(
-        Object.entries(result.questions_by_subject ?? {}).map(
-          ([subjectId, questions]) => [Number(subjectId), questions],
-        ),
-      ) as Record<number, Question[]>;
+      const resultQuestions = normalizeQuestionsBySubject(
+        result.questions_by_subject ?? {},
+      );
 
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -638,7 +935,7 @@ export default function MockQuizScreen() {
       setScores(result.scores_by_subject ?? {});
       setShowResults(true);
       setTimerActive(false);
-      storage.deleteItem("active_mock_session").catch(() => {});
+      hasUnsavedChangesRef.current = false;
     } catch (submitError: any) {
       Alert.alert(
         "Unable to Submit Mock",
@@ -706,20 +1003,21 @@ export default function MockQuizScreen() {
 
     Alert.alert(
       "Exit Mock Exam",
-      `Are you sure you want to exit? Your progress (${answered}/${total} answered) is saved and can be resumed later.`,
+      `Are you sure you want to exit? Your progress (${answered}/${total} answered) will not be restored.`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Exit",
           style: "destructive",
-          onPress: () => {
+          onPress: async () => {
             if (timerRef.current) {
               clearInterval(timerRef.current);
             }
-            void saveProgress(
-              currentSubjectIndex,
-              currentQuestionIndex,
-            ).finally(() => router.replace("/(tabs)/mock-setup"));
+            if (autosaveTimerRef.current) {
+              clearTimeout(autosaveTimerRef.current);
+            }
+
+            router.replace("/(tabs)/mock-setup");
           },
         },
       ],
@@ -1053,7 +1351,7 @@ export default function MockQuizScreen() {
   const isAtStart = currentSubjectIndex === 0 && currentQuestionIndex === 0;
   const isAtEnd =
     currentSubjectIndex === subjectsData.length - 1 &&
-    currentQuestionIndex >= getCurrentQuestions().length - 1;
+    currentQuestionIndex >= getSubjectQuestionCount(currentSubjectIndex) - 1;
 
   return (
     <View className="flex-1 bg-neutral-50 dark:bg-neutral-950">
@@ -1104,7 +1402,11 @@ export default function MockQuizScreen() {
           </Animated.View>
         </View>
 
-        {progressSaveError ? (
+        {isAutosaving ? (
+          <Caption className="mt-2 text-center text-purple-700 dark:text-purple-400">
+            Saving progress...
+          </Caption>
+        ) : progressSaveError ? (
           <Caption className="mt-2 text-center text-amber-700 dark:text-amber-400">
             Progress could not sync. Check your connection before leaving.
           </Caption>
@@ -1134,7 +1436,7 @@ export default function MockQuizScreen() {
         {subjectsData.map((subject, index) => {
           const isActive = currentSubjectIndex === index;
           const answered = getAnsweredCount(subject.id);
-          const total = questionsBySubject[subject.id]?.length ?? 0;
+          const total = getSubjectQuestionCount(index);
           const isComplete = total > 0 && answered === total;
 
           return (
@@ -1186,7 +1488,7 @@ export default function MockQuizScreen() {
                     </Caption>
                   </View>
                   <Caption className="text-neutral-500 dark:text-neutral-400">
-                    of {getCurrentQuestions().length}
+                    of {getSubjectQuestionCount(currentSubjectIndex)}
                   </Caption>
                 </View>
                 <View className="bg-neutral-100 dark:bg-neutral-800 px-3 py-1 rounded-full">
@@ -1342,7 +1644,7 @@ export default function MockQuizScreen() {
         <View className="flex-row items-center justify-between mb-3">
           <TouchableOpacity
             onPress={previousQuestion}
-            disabled={isAtStart}
+            disabled={isAtStart || isLoadingQuestionBatch}
             className="w-12 h-12 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800"
             style={{ opacity: isAtStart ? 0.4 : 1 }}
           >
@@ -1357,9 +1659,17 @@ export default function MockQuizScreen() {
             onPress={() => setShowQuestionNavigator(true)}
             className="flex-row items-center px-4 py-2 bg-purple-50 dark:bg-purple-900/20 rounded-full"
           >
-            <BodyText className="text-purple-700 dark:text-purple-300 font-semibold">
-              {currentQuestionIndex + 1}/{getCurrentQuestions().length}
-            </BodyText>
+            {isLoadingQuestionBatch ? (
+              <ActivityIndicator
+                size="small"
+                color={isDark ? "#a78bfa" : "#7c3aed"}
+              />
+            ) : (
+              <BodyText className="text-purple-700 dark:text-purple-300 font-semibold">
+                {currentQuestionIndex + 1}/
+                {getSubjectQuestionCount(currentSubjectIndex)}
+              </BodyText>
+            )}
             <MaterialIcons
               name="expand-more"
               size={20}
@@ -1369,6 +1679,7 @@ export default function MockQuizScreen() {
 
           <TouchableOpacity
             onPress={nextQuestion}
+            disabled={isLoadingQuestionBatch}
             className="w-12 h-12 items-center justify-center rounded-full bg-purple-600"
           >
             <MaterialIcons name="chevron-right" size={28} color="#ffffff" />
@@ -1466,7 +1777,7 @@ export default function MockQuizScreen() {
             showsVerticalScrollIndicator={false}
           >
             {subjectsData.map((subject, subjectIndex) => {
-              const questions = questionsBySubject[subject.id] ?? [];
+              const questionCount = getSubjectQuestionCount(subjectIndex);
               const subjectAnswers = userAnswers[subject.id] ?? {};
               const answeredCount = getAnsweredCount(subject.id);
 
@@ -1475,51 +1786,54 @@ export default function MockQuizScreen() {
                   <View className="flex-row items-center justify-between mb-3">
                     <Heading size="md">{subject.name}</Heading>
                     <Caption className="text-neutral-500 dark:text-neutral-400">
-                      {answeredCount}/{questions.length} answered
+                      {answeredCount}/{questionCount} answered
                     </Caption>
                   </View>
                   <View className="flex-row flex-wrap gap-2">
-                    {questions.map((_, questionIndex) => {
-                      const isAnswered =
-                        subjectAnswers[questionIndex] !== undefined &&
-                        subjectAnswers[questionIndex] !== null;
-                      const isCurrent =
-                        currentSubjectIndex === subjectIndex &&
-                        currentQuestionIndex === questionIndex;
+                    {Array.from(
+                      { length: questionCount },
+                      (_, questionIndex) => {
+                        const isAnswered =
+                          subjectAnswers[questionIndex] !== undefined &&
+                          subjectAnswers[questionIndex] !== null;
+                        const isCurrent =
+                          currentSubjectIndex === subjectIndex &&
+                          currentQuestionIndex === questionIndex;
 
-                      return (
-                        <TouchableOpacity
-                          key={questionIndex}
-                          onPress={() =>
-                            jumpToQuestion(subjectIndex, questionIndex)
-                          }
-                          className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${
-                            isCurrent
-                              ? "bg-purple-600"
-                              : isAnswered
-                                ? "bg-green-500"
-                                : "bg-neutral-100 dark:bg-neutral-800"
-                          }`}
-                          style={{
-                            shadowColor: isCurrent
-                              ? "#7c3aed"
-                              : isAnswered
-                                ? "#22c55e"
-                                : "#000",
-                            shadowOffset: { width: 0, height: 2 },
-                            shadowOpacity: 0.1,
-                            shadowRadius: 4,
-                            elevation: 2,
-                          }}
-                        >
-                          <BodyText
-                            className={`font-semibold ${isCurrent || isAnswered ? "text-white" : "text-neutral-600 dark:text-neutral-400"}`}
+                        return (
+                          <TouchableOpacity
+                            key={questionIndex}
+                            onPress={() =>
+                              jumpToQuestion(subjectIndex, questionIndex)
+                            }
+                            className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${
+                              isCurrent
+                                ? "bg-purple-600"
+                                : isAnswered
+                                  ? "bg-green-500"
+                                  : "bg-neutral-100 dark:bg-neutral-800"
+                            }`}
+                            style={{
+                              shadowColor: isCurrent
+                                ? "#7c3aed"
+                                : isAnswered
+                                  ? "#22c55e"
+                                  : "#000",
+                              shadowOffset: { width: 0, height: 2 },
+                              shadowOpacity: 0.1,
+                              shadowRadius: 4,
+                              elevation: 2,
+                            }}
                           >
-                            {questionIndex + 1}
-                          </BodyText>
-                        </TouchableOpacity>
-                      );
-                    })}
+                            <BodyText
+                              className={`font-semibold ${isCurrent || isAnswered ? "text-white" : "text-neutral-600 dark:text-neutral-400"}`}
+                            >
+                              {questionIndex + 1}
+                            </BodyText>
+                          </TouchableOpacity>
+                        );
+                      },
+                    )}
                   </View>
                 </View>
               );

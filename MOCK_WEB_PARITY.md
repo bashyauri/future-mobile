@@ -38,7 +38,7 @@ Mobile should expose both modes. Do not silently substitute the first batch for 
 
 - Persist mobile answers and completed attempts through authenticated server APIs. A score calculated only in React state is not a completed attempt.
 - Results must include the overall and per-subject scores and be available to the user's mock history/dashboard, consistent with web attempts.
-- Preserve/resume an in-progress attempt safely after app navigation or restart. The server must validate ownership, status, and expiry; do not trust a client-provided score or correct-answer flag.
+- Do not offer or restore an in-progress attempt after leaving or reopening the mock. Active attempts remain timed and can be autosaved while the exam is open; completed attempts remain available for results and review.
 - Keep the existing answer-review experience after submission, but load authoritative results and review data from the submitted attempt where possible.
 
 ## API Contract
@@ -46,7 +46,7 @@ Mobile should expose both modes. Do not silently substitute the first batch for 
 - `GET /mock/subjects?exam_type_id=...` returns active subjects with approved, usable mock questions and the format's configured question/time metadata.
 - `GET /mock/groups?subject_id=...&exam_type_id=...` returns batches with the authenticated user's completion state and best score.
 - `POST /mock/sessions` creates a persistent Full Mock session and in-progress `QuizAttempt`. It uses the configured counts/duration and randomly samples mock questions and answer-option order. Pass `mock_group_id` with one subject to start that exact Subject Mock Batch; batch duration is 60 minutes.
-- `GET /mock/sessions/active` finds the current user's resumable attempt. `GET /mock/sessions/{session}` returns saved answers, ordered questions, current position, and server-derived remaining time.
+- `GET /mock/sessions/{session}` returns the first five ordered questions and server-derived remaining time for an active attempt. `GET /mock/sessions/{session}/subjects/{subject}/questions/{offset}` returns a subject's requested five-question page from the persisted order. Active loads do not restore saved answers or position; completed loads include answer-review data.
 - `PUT /mock/sessions/{session}/progress` saves owned question/option answers and position. `POST /mock/sessions/{session}/submit` grades server-side and completes the attempt; `mock_group_id` is retained for batch history and score summaries.
 - Correct options and explanations are omitted from server-backed active attempts and returned only after submission. The existing standalone group-download response remains unchanged for compatibility with the sibling legacy `mobile/` project; `future-mobile` must use the session endpoint for exam attempts.
 - The server enforces subject eligibility, JAMB's four-subject maximum, ownership, expiry, question membership, answer-option membership, and timer expiry. Never trust client-provided scores or correctness flags.
@@ -62,7 +62,7 @@ Mobile should expose both modes. Do not silently substitute the first batch for 
 
 ## Web UI Changes
 
-No web visual redesign is required. However, the requested subject-limit correction must be applied to the web setup too: the generic web mock currently caps every format at four, so update its selection state, validation, and Blade labels/disabled states to make the cap JAMB-only and leave SSCE/WAEC without a fixed four-subject maximum. Keep the native mobile UI distinct while applying the same rules.
+No web visual redesign is required. The web setup applies the JAMB-only subject cap. Neither web nor mobile offers resume; reopening an active session starts with a blank answer sheet at question one, while the original exam timer continues.
 
 One optional web copy correction may be appropriate: the SSCE setup describes each subject as having its own duration, while the quiz currently enforces one overall timer equal to the sum of selected subject times. If that wording is changed, keep it consistent with the actual timer behavior; do not change the timer model as part of mobile parity without product approval.
 
@@ -75,9 +75,10 @@ One optional web copy correction may be appropriate: the SSCE setup describes ea
 - [x] Batch question count, completion state, best score, and retake state match server records.
 - [x] No year picker is shown and no year filter is implied.
 - [x] Missing mock data prevents starting an incomplete Full Mock and gives a useful message.
-- [x] Mobile answers survive navigation/restart through server-backed progress and active-session resume.
+- [x] Answers can be autosaved while an exam is open; reopening starts with a blank answer sheet and question one.
 - [x] Submitting or timing out records a server-side attempt and authoritative scores.
 - [x] The quiz uses the correct timer for its selected mode and does not expose answers before submission.
+- [x] The first question loads with a five-question payload; later pages load on demand without changing server question or option order.
 - [x] API feature tests cover configured counts/timing, batches, persistence, grading, answer secrecy, and ownership; focused API tests pass.
 - [x] Web and mobile both enforce the same exam-format subject limits; no visual redesign is required.
 - [ ] `npm run lint` passes without existing mobile-project lint errors.

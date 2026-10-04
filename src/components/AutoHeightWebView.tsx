@@ -1,6 +1,6 @@
 // src/components/AutoHeightWebView.tsx
 
-import React, { useMemo, useRef, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   StyleProp,
@@ -26,9 +26,21 @@ export const AutoHeightWebView: React.FC<AutoHeightWebViewProps> = ({
   onHeightUpdated,
 }) => {
   const [height, setHeight] = useState(minHeight);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(html));
 
   const lastHeight = useRef(minHeight);
+
+  useEffect(() => {
+    setLoading(Boolean(html));
+
+    const fallbackTimer = setTimeout(() => {
+      setLoading(false);
+    }, 500);
+
+    return () => {
+      clearTimeout(fallbackTimer);
+    };
+  }, [html]);
 
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
@@ -244,7 +256,9 @@ window.addEventListener("resize",sendHeight);
         bounces={false}
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
+        onLoad={() => setLoading(false)}
         onLoadEnd={() => setLoading(false)}
+        onError={() => setLoading(false)}
         style={styles.webview}
         containerStyle={styles.webview}
       />
