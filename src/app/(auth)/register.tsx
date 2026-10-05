@@ -14,6 +14,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as Device from "expo-device";
 import api from "@/lib/api";
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
 import { BodyText, Heading } from "@/components/Typography";
 import { useAuth } from "@/context/AuthContext";
@@ -246,6 +247,52 @@ export default function RegisterScreen() {
               />
             }
           />
+
+          {/* Data Protection & Privacy Notice */}
+          <Card
+            variant="outlined"
+            padding="md"
+            className="mb-4 border-neutral-300 dark:border-neutral-700"
+          >
+            <View className="gap-3">
+              <View className="flex-row items-start gap-2">
+                <MaterialIcons
+                  name="privacy-tip"
+                  size={20}
+                  color="#4f46e5"
+                />
+                <Text
+                  className={`font-semibold text-base ${isDark ? "text-neutral-50" : "text-neutral-900"}`}
+                >
+                  Data Protection & Privacy Notice
+                </Text>
+              </View>
+              <View className="gap-2">
+                <Text
+                  className={`text-sm leading-relaxed ${isDark ? "text-neutral-300" : "text-neutral-700"}`}
+                >
+                  By creating an account, you agree to the collection and processing of your personal data in accordance with our Privacy Policy. Your information will be used to provide and improve our educational services.
+                </Text>
+                <Text
+                  className={`text-sm leading-relaxed ${isDark ? "text-neutral-300" : "text-neutral-700"}`}
+                >
+                  For students: We collect personal information necessary for educational purposes and to track learning progress. Your data is protected and will not be shared with third parties without consent.
+                </Text>
+                <Text
+                  className={`text-sm leading-relaxed ${isDark ? "text-neutral-300" : "text-neutral-700"}`}
+                >
+                  For guardians: You may be asked to provide information about students under your care. This includes student names, age, and educational information required for account management and progress tracking.
+                </Text>
+              </View>
+              <Link href="/info/privacy-policy" asChild>
+                <Pressable>
+                  <Text className="text-sm font-semibold text-primary-600">
+                    Read our full Privacy Policy
+                  </Text>
+                </Pressable>
+              </Link>
+            </View>
+          </Card>
 
           <Button
             variant="primary"

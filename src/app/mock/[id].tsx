@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import {
   View,
   TouchableOpacity,
@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
   Animated,
   AppState,
+  BackHandler,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
@@ -173,6 +174,7 @@ const getOptionLabel = (index: number): string =>
   String.fromCharCode(65 + index);
 
 const QUESTION_BATCH_SIZE = 5;
+const SAVE_DELAY_MS = 1500;
 
 const formatTime = (seconds: number): string => {
   const h = Math.floor(seconds / 3600);
@@ -328,6 +330,9 @@ export default function MockQuizScreen() {
 
   const [showResults, setShowResults] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [reviewReady, setReviewReady] = useState(false);
+  const [isLoadingReview, setIsLoadingReview] = useState(false);
+  const [expandedReviewId, setExpandedReviewId] = useState<number | null>(null);
   const [scores, setScores] = useState<
     Record<number, { score: number; total: number }>
   >({});
@@ -342,7 +347,8 @@ export default function MockQuizScreen() {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const timerPulseAnim = useRef(new Animated.Value(1)).current;
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasUnsavedChangesRef = useRef(false);
+  const pendingAnswersRef = useRef<Record<number, number>>({});
+  const flushPromiseRef = useRef<Promise<void> | null>(null);
   const isLoadingQuestionBatchRef = useRef(false);
 
   // ── Load session + questions ──────────────────────────────────────────────────
@@ -415,6 +421,7 @@ export default function MockQuizScreen() {
 
         if (isCompleted) {
           setScores(sessionData.scores_by_subject ?? {});
+          setReviewReady(true);
           setShowResults(true);
           setTimerActive(false);
         } else {
@@ -483,52 +490,78 @@ export default function MockQuizScreen() {
     }
   }, [timeRemaining < 300]);
 
-  // ── Debounced autosave to server (every 10 seconds) ─────────────────────────────
+  // ── Answer saving: only changed answers are sent, one request at a time ─────
 
-  useEffect(() => {
-    // Clear any existing timer
+  const flushProgress = useCallback((): Promise<void> => {
+    if (!id) {
+      return Promise.resolve();
+    }
+
+    if (flushPromiseRef.current) {
+      return flushPromiseRef.current;
+    }
+
+    const run = (async () => {
+      setIsAutosaving(true);
+
+      while (Object.keys(pendingAnswersRef.current).length > 0) {
+        const batch = pendingAnswersRef.current;
+        pendingAnswersRef.current = {};
+
+        try {
+          await api.put(`/mock/sessions/${id}/progress`, { answers: batch });
+          setProgressSaveError(false);
+        } catch {
+          // Answers picked again while this request ran are newer, so they win.
+          pendingAnswersRef.current = {
+            ...batch,
+            ...pendingAnswersRef.current,
+          };
+          setProgressSaveError(true);
+          break;
+        }
+      }
+    })().finally(() => {
+      flushPromiseRef.current = null;
+      setIsAutosaving(false);
+    });
+
+    flushPromiseRef.current = run;
+
+    return run;
+  }, [id]);
+
+  const scheduleFlush = useCallback(() => {
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current);
     }
 
-    // Only set timer if we have unsaved changes and not showing results
-    if (!hasUnsavedChangesRef.current || showResults) {
-      return;
-    }
-
-    // Set new timer for 10 seconds
     autosaveTimerRef.current = setTimeout(() => {
-      saveToServer();
-    }, 10000);
+      void flushProgress();
+    }, SAVE_DELAY_MS);
+  }, [flushProgress]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "background" || nextState === "inactive") {
+        void flushProgress();
+      }
+    });
 
     return () => {
+      subscription.remove();
+    };
+  }, [flushProgress]);
+
+  useEffect(
+    () => () => {
       if (autosaveTimerRef.current) {
         clearTimeout(autosaveTimerRef.current);
       }
-    };
-  }, [currentSubjectIndex, currentQuestionIndex, userAnswers, showResults]);
-
-  // ── Save to server on app background/blur ─────────────────────────────────────
-
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
-      if (nextAppState === "background" || nextAppState === "inactive") {
-        // Save immediately when app goes to background
-        if (hasUnsavedChangesRef.current) {
-          saveToServer();
-        }
-      }
-    };
-
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange,
-    );
-
-    return () => {
-      subscription?.remove();
-    };
-  }, []);
+      void flushProgress();
+    },
+    [flushProgress],
+  );
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -642,6 +675,7 @@ export default function MockQuizScreen() {
           ),
         );
         setScores(batchData.scores_by_subject ?? {});
+        setReviewReady(true);
         setShowResults(true);
         setTimerActive(false);
 
@@ -703,61 +737,9 @@ export default function MockQuizScreen() {
     void loadQuestionsThrough(subjectIndex, nextPageOffset);
   };
 
-  const saveProgress = (
-    subjectIndex: number,
-    questionIndex: number,
-    questionId?: number,
-    optionId?: number | null,
-  ): Promise<void> => {
-    if (!id) {
-      return Promise.resolve();
-    }
-
-    // Mark that we have unsaved changes
-    hasUnsavedChangesRef.current = true;
-
-    // Debounced server save (will be triggered by useEffect)
-    return Promise.resolve();
-  };
-
-  const saveToServer = async (): Promise<void> => {
-    if (!id || !hasUnsavedChangesRef.current) {
-      return;
-    }
-
-    setIsAutosaving(true);
-
-    try {
-      const payload: {
-        current_question_index: number;
-        answers?: Record<number, number | null>;
-      } = {
-        current_question_index: getGlobalQuestionIndex(
-          currentSubjectIndex,
-          currentQuestionIndex,
-        ),
-      };
-
-      // Convert answers from subject/question format to question_id format
-      const answersByQuestion: Record<number, number | null> = {};
-      for (const subject of subjectsData) {
-        const questions = questionsBySubject[subject.id] ?? [];
-        const answers = userAnswers[subject.id] ?? {};
-        questions.forEach((question, index) => {
-          answersByQuestion[question.id] = answers[index] ?? null;
-        });
-      }
-      payload.answers = answersByQuestion;
-
-      await api.put(`/mock/sessions/${id}/progress`, payload);
-      setProgressSaveError(false);
-      hasUnsavedChangesRef.current = false;
-    } catch (saveError) {
-      console.warn("Failed to save mock progress to server:", saveError);
-      setProgressSaveError(true);
-    } finally {
-      setIsAutosaving(false);
-    }
+  const queueAnswer = (questionId: number, optionId: number): void => {
+    pendingAnswersRef.current[questionId] = optionId;
+    scheduleFlush();
   };
 
   const selectAnswer = (optionId: number) => {
@@ -770,12 +752,9 @@ export default function MockQuizScreen() {
         [currentQuestionIndex]: optionId,
       },
     }));
-    saveProgress(
-      currentSubjectIndex,
-      currentQuestionIndex,
-      question?.id,
-      optionId,
-    );
+    if (question) {
+      queueAnswer(question.id, optionId);
+    }
 
     Animated.sequence([
       Animated.timing(scaleAnim, {
@@ -801,7 +780,6 @@ export default function MockQuizScreen() {
 
     setCurrentSubjectIndex(index);
     setCurrentQuestionIndex(0);
-    saveProgress(index, 0);
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
 
@@ -828,7 +806,6 @@ export default function MockQuizScreen() {
 
     setCurrentSubjectIndex(nextSubjectIndex);
     setCurrentQuestionIndex(nextQuestionIndex);
-    saveProgress(nextSubjectIndex, nextQuestionIndex);
     prefetchNextQuestionPage(nextSubjectIndex, nextQuestionIndex);
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
@@ -855,7 +832,6 @@ export default function MockQuizScreen() {
 
     setCurrentSubjectIndex(previousSubjectIndex);
     setCurrentQuestionIndex(previousQuestionIndex);
-    saveProgress(previousSubjectIndex, previousQuestionIndex);
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
 
@@ -873,7 +849,6 @@ export default function MockQuizScreen() {
     setCurrentSubjectIndex(subjectIndex);
     setCurrentQuestionIndex(questionIndex);
     setShowQuestionNavigator(false);
-    saveProgress(subjectIndex, questionIndex);
     prefetchNextQuestionPage(subjectIndex, questionIndex);
     scrollViewRef.current?.scrollTo({ y: 0, animated: false });
   };
@@ -892,50 +867,24 @@ export default function MockQuizScreen() {
     }
 
     // Flush any pending changes to server before submit
-    if (hasUnsavedChangesRef.current) {
-      await saveToServer();
-    }
-
-    const answersByQuestion: Record<number, number | null> = {};
-    for (const subject of subjectsData) {
-      const questions = questionsBySubject[subject.id] ?? [];
-      const answers = userAnswers[subject.id] ?? {};
-      questions.forEach((question, index) => {
-        answersByQuestion[question.id] = answers[index] ?? null;
-      });
-    }
+    await flushProgress();
 
     try {
       const response = await api.post(`/mock/sessions/${id}/submit`, {
-        answers: answersByQuestion,
-        current_question_index: getGlobalQuestionIndex(
-          currentSubjectIndex,
-          currentQuestionIndex,
-        ),
+        answers: pendingAnswersRef.current,
       });
       const result: SessionData = response.data?.data;
       const resultSubjects = result.subjects ?? subjectsData;
-      const resultQuestions = normalizeQuestionsBySubject(
-        result.questions_by_subject ?? {},
-      );
 
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
       setSession(result);
       setSubjectsData(resultSubjects);
-      setQuestionsBySubject(resultQuestions);
-      setUserAnswers(
-        restoreAnswers(
-          resultSubjects,
-          resultQuestions,
-          result.answers_by_question ?? {},
-        ),
-      );
       setScores(result.scores_by_subject ?? {});
+      setReviewReady(false);
       setShowResults(true);
       setTimerActive(false);
-      hasUnsavedChangesRef.current = false;
     } catch (submitError: any) {
       Alert.alert(
         "Unable to Submit Mock",
@@ -978,6 +927,47 @@ export default function MockQuizScreen() {
     submitMockToServer,
   ]);
 
+  const toggleReview = async () => {
+    if (showReview) {
+      setShowReview(false);
+
+      return;
+    }
+
+    if (!reviewReady) {
+      setIsLoadingReview(true);
+
+      try {
+        const response = await api.get(`/mock/sessions/${id}`);
+        const reviewData: SessionData = response.data?.data;
+        const reviewQuestions = normalizeQuestionsBySubject(
+          reviewData.questions_by_subject ?? {},
+        );
+
+        setQuestionsBySubject(reviewQuestions);
+        setUserAnswers(
+          restoreAnswers(
+            reviewData.subjects ?? subjectsData,
+            reviewQuestions,
+            reviewData.answers_by_question ?? {},
+          ),
+        );
+        setReviewReady(true);
+      } catch {
+        Alert.alert(
+          "Unable to Load Review",
+          "We couldn't load your answers. Check your connection and try again.",
+        );
+
+        return;
+      } finally {
+        setIsLoadingReview(false);
+      }
+    }
+
+    setShowReview(true);
+  };
+
   const submitQuiz = () => {
     const answered = getTotalAnswered();
     const total = getTotalQuestions();
@@ -1002,27 +992,37 @@ export default function MockQuizScreen() {
     const total = getTotalQuestions();
 
     Alert.alert(
-      "Exit Mock Exam",
-      `Are you sure you want to exit? Your progress (${answered}/${total} answered) will not be restored.`,
+      "Leave this exam?",
+      `Leaving submits your exam now. You have answered ${answered} of ${total} questions and cannot come back to it.`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Stay", style: "cancel" },
         {
-          text: "Exit",
+          text: "Submit and leave",
           style: "destructive",
-          onPress: async () => {
-            if (timerRef.current) {
-              clearInterval(timerRef.current);
-            }
-            if (autosaveTimerRef.current) {
-              clearTimeout(autosaveTimerRef.current);
-            }
-
-            router.replace("/(tabs)/mock-setup");
+          onPress: () => {
+            void submitMockToServer();
           },
         },
       ],
     );
   };
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (showResults || isLoading) {
+          return false;
+        }
+
+        exitQuiz();
+
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  });
 
   // ─── Loading ─────────────────────────────────────────────────────────────────
 
@@ -1181,7 +1181,8 @@ export default function MockQuizScreen() {
             variant="outline"
             size="lg"
             fullWidth
-            onPress={() => setShowReview(!showReview)}
+            onPress={toggleReview}
+            loading={isLoadingReview}
             className="mt-2 mb-3"
           >
             {showReview ? "Hide Answer Review" : "Review Answers"}
@@ -1215,7 +1216,15 @@ export default function MockQuizScreen() {
                           key={q.id}
                           className="bg-white dark:bg-neutral-900 rounded-xl p-4 mb-4 border border-neutral-200 dark:border-neutral-800"
                         >
-                          <View className="flex-row justify-between items-center mb-2">
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() =>
+                              setExpandedReviewId((current) =>
+                                current === q.id ? null : q.id,
+                              )
+                            }
+                            className="flex-row justify-between items-center mb-2"
+                          >
                             <BodyText className="font-bold text-neutral-900 dark:text-neutral-100">
                               Question {idx + 1}
                             </BodyText>
@@ -1232,83 +1241,93 @@ export default function MockQuizScreen() {
                                 {isCorrectAns ? "✅ Correct" : "❌ Incorrect"}
                               </Caption>
                             </View>
-                          </View>
+                          </TouchableOpacity>
 
-                          <AutoHeightWebView
-                            html={q.question_text_html || q.question_text}
-                            scrollEnabled={false}
-                          />
-
-                          <View className="mt-3">
-                            {q.options.map((opt) => {
-                              const isSelectedOpt = opt.id === uAnswer;
-                              const isCorrectOpt = opt.is_correct;
-                              let bgColor = "bg-transparent";
-                              if (isSelectedOpt && isCorrectOpt) {
-                                bgColor = "bg-green-50 dark:bg-green-900/20";
-                              } else if (isSelectedOpt && !isCorrectOpt) {
-                                bgColor = "bg-red-50 dark:bg-red-900/20";
-                              } else if (isCorrectOpt) {
-                                bgColor = "bg-green-50/50 dark:bg-green-900/10";
-                              }
-
-                              return (
-                                <View
-                                  key={opt.id}
-                                  className={`p-2 rounded-lg my-1 flex-row items-center ${bgColor}`}
-                                >
-                                  <View className="flex-1">
-                                    {!opt.option_text_html ||
-                                    !opt.option_text_html.includes("<") ? (
-                                      <BodyText className="text-neutral-700 dark:text-neutral-300">
-                                        {opt.option_text}
-                                      </BodyText>
-                                    ) : (
-                                      <AutoHeightWebView
-                                        html={
-                                          opt.option_text_html ||
-                                          opt.option_text
-                                        }
-                                        scrollEnabled={false}
-                                      />
-                                    )}
-                                  </View>
-                                  {isSelectedOpt && isCorrectOpt && (
-                                    <MaterialIcons
-                                      name="check-circle"
-                                      size={16}
-                                      color="#22c55e"
-                                    />
-                                  )}
-                                  {isSelectedOpt && !isCorrectOpt && (
-                                    <MaterialIcons
-                                      name="cancel"
-                                      size={16}
-                                      color="#ef4444"
-                                    />
-                                  )}
-                                  {!isSelectedOpt && isCorrectOpt && (
-                                    <MaterialIcons
-                                      name="check-circle"
-                                      size={16}
-                                      color="#4ade80"
-                                    />
-                                  )}
-                                </View>
-                              );
-                            })}
-                          </View>
-
-                          {q.explanation_html && (
-                            <View className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                              <Caption className="font-bold text-blue-900 dark:text-blue-300 mb-1">
-                                💡 Explanation
-                              </Caption>
+                          {expandedReviewId !== q.id ? (
+                            <Caption className="text-neutral-500 dark:text-neutral-400">
+                              Tap to view question and explanation
+                            </Caption>
+                          ) : (
+                            <>
                               <AutoHeightWebView
-                                html={q.explanation_html}
+                                html={q.question_text_html || q.question_text}
                                 scrollEnabled={false}
                               />
-                            </View>
+
+                              <View className="mt-3">
+                                {q.options.map((opt) => {
+                                  const isSelectedOpt = opt.id === uAnswer;
+                                  const isCorrectOpt = opt.is_correct;
+                                  let bgColor = "bg-transparent";
+                                  if (isSelectedOpt && isCorrectOpt) {
+                                    bgColor =
+                                      "bg-green-50 dark:bg-green-900/20";
+                                  } else if (isSelectedOpt && !isCorrectOpt) {
+                                    bgColor = "bg-red-50 dark:bg-red-900/20";
+                                  } else if (isCorrectOpt) {
+                                    bgColor =
+                                      "bg-green-50/50 dark:bg-green-900/10";
+                                  }
+
+                                  return (
+                                    <View
+                                      key={opt.id}
+                                      className={`p-2 rounded-lg my-1 flex-row items-center ${bgColor}`}
+                                    >
+                                      <View className="flex-1">
+                                        {!opt.option_text_html ||
+                                        !opt.option_text_html.includes("<") ? (
+                                          <BodyText className="text-neutral-700 dark:text-neutral-300">
+                                            {opt.option_text}
+                                          </BodyText>
+                                        ) : (
+                                          <AutoHeightWebView
+                                            html={
+                                              opt.option_text_html ||
+                                              opt.option_text
+                                            }
+                                            scrollEnabled={false}
+                                          />
+                                        )}
+                                      </View>
+                                      {isSelectedOpt && isCorrectOpt && (
+                                        <MaterialIcons
+                                          name="check-circle"
+                                          size={16}
+                                          color="#22c55e"
+                                        />
+                                      )}
+                                      {isSelectedOpt && !isCorrectOpt && (
+                                        <MaterialIcons
+                                          name="cancel"
+                                          size={16}
+                                          color="#ef4444"
+                                        />
+                                      )}
+                                      {!isSelectedOpt && isCorrectOpt && (
+                                        <MaterialIcons
+                                          name="check-circle"
+                                          size={16}
+                                          color="#4ade80"
+                                        />
+                                      )}
+                                    </View>
+                                  );
+                                })}
+                              </View>
+
+                              {q.explanation_html && (
+                                <View className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                                  <Caption className="font-bold text-blue-900 dark:text-blue-300 mb-1">
+                                    💡 Explanation
+                                  </Caption>
+                                  <AutoHeightWebView
+                                    html={q.explanation_html}
+                                    scrollEnabled={false}
+                                  />
+                                </View>
+                              )}
+                            </>
                           )}
                         </View>
                       );

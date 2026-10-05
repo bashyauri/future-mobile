@@ -60,6 +60,29 @@ Mobile should expose both modes. Do not silently substitute the first batch for 
 - Provide loading, empty, validation-error, offline/network-error, and submission states. Prevent duplicate starts/submissions while requests are in progress.
 - Do not add year selection until its behavior is supported end to end.
 
+## Standard Exam Behavior (Planned, Not Yet Implemented)
+
+Mock exams are one-sitting exams with no resume. Leaving the exam ends the attempt and the saved answers are graded. Implement in this order; add tests with each server step.
+
+1. **Saved answers are never erased by a blank state.** A submit or progress request must not overwrite a stored answer with an unanswered value. Only an actual new choice changes a stored answer. Test: save an answer, submit with a blank sheet, and confirm the saved answer is still graded.
+2. **Abandoned and expired mocks are graded by the server.**
+   - A scheduled command submits any active mock whose time limit has passed, graded from its saved answers.
+   - Starting a new mock first finishes any unfinished one.
+   - Opening an old mock link shows its result, never a blank exam.
+3. **Saving is fast and does not block the UI.**
+   - The tap updates the screen immediately and never waits on the network.
+   - Send only the answers changed since the last successful save.
+   - Wait 1 to 2 seconds before saving, and send one request at a time.
+   - Save immediately when the app goes to the background, before submit, and when exiting.
+   - Show a small saving/saved indicator and retry quietly on failure.
+   - The server updates only the answers it receives instead of re-checking every answer.
+4. **Leaving is deliberate.** Web shows a "Leave this exam?" browser warning. Mobile warns on the Exit button and the Android back button, stating the exam will be submitted.
+5. **Submit is light.** Submit returns only the score; the answer review loads when the user taps Review Answers.
+
+Out of scope: anti-cheating measures that cannot be enforced reliably on mobile. Server-side timing and randomized question and option order remain the protection.
+
+Open decision: whether an abandoned mock counts in the user's history and scores (recommended: yes, as submitted) or is marked abandoned and excluded.
+
 ## Web UI Changes
 
 No web visual redesign is required. The web setup applies the JAMB-only subject cap. Neither web nor mobile offers resume; reopening an active session starts with a blank answer sheet at question one, while the original exam timer continues.
