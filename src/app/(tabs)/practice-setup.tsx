@@ -1514,7 +1514,7 @@ export default function PracticeSetupScreen() {
 
         <BodyText className="text-neutral-900 dark:text-neutral-400">
           Focus on specific subjects and
-          past questions to sharpen your
+          practice questions to sharpen your
           skills at your own pace.
         </BodyText>
       </View>
@@ -1788,74 +1788,6 @@ export default function PracticeSetupScreen() {
             ),
           )}
         </View>
-
-        {/* --------------------------------------------------------------- */}
-        {/* Years */}
-        {/* --------------------------------------------------------------- */}
-
-        <Subheading
-          size="md"
-          className="mb-3 px-2"
-        >
-          Select Year
-        </Subheading>
-
-        {isLoadingYears ||
-          isApplyingYearSelection ? (
-          <View className="flex-row items-center px-2 mb-3">
-            <ActivityIndicator
-              size="small"
-              color="#4f46e5"
-            />
-
-            <Caption className="ml-2 text-neutral-500 dark:text-neutral-400">
-              {isLoadingYears
-                ? "Loading years..."
-                : "Applying year..."}
-            </Caption>
-          </View>
-        ) : null}
-
-        <View className="flex-row flex-wrap px-2 mb-6">
-          {years.map((yearOption) => (
-            <Button
-              key={String(
-                yearOption.year,
-              )}
-              onPress={() =>
-                handleYearSelection(
-                  yearOption,
-                )
-              }
-              variant={
-                selectedYear?.year ===
-                  yearOption.year
-                  ? "primary"
-                  : "outline"
-              }
-              disabled={
-                !selectedSubject ||
-                !selectedExamType ||
-                isLoadingYears
-              }
-              size="sm"
-              style={{
-                marginRight: 12,
-                marginBottom: 12,
-              }}
-            >
-              {yearOption.label}
-            </Button>
-          ))}
-        </View>
-
-        {!selectedExamType ? (
-          <Caption className="px-2 mb-6 text-neutral-500 dark:text-neutral-400">
-            Select an exam type to choose
-            a specific year. Otherwise, all
-            years will be used.
-          </Caption>
-        ) : null}
 
         {/* --------------------------------------------------------------- */}
         {/* Practice Settings */}

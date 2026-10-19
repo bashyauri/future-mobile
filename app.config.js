@@ -19,7 +19,7 @@ module.exports = {
     name: appName,
     slug: "mobile",
     version: "2.0.0",
-    orientation: "portrait",
+    orientation: "default",
     icon: "./assets/images/icon.png",
     scheme: "mobile",
     userInterfaceStyle: "automatic",

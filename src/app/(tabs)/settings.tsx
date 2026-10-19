@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, Alert, ScrollView, Switch, Platform } from 'react-native';
+import { View, TouchableOpacity, Alert, ScrollView, Switch, Platform, Linking } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -142,13 +142,18 @@ export default function SettingsScreen() {
 
       {/* Support & About Section */}
       <Section title="Support & About">
+        <SettingRow
+          icon="chat"
+          label="WhatsApp Support (07071100037)"
+          onPress={() => Linking.openURL('https://wa.me/2347071100037?text=Hello%20Future%20Academy%2C%20I%20need%20assistance')}
+        />
         <SettingRow icon="help-outline" label="Help Center" onPress={() => router.push('/info/help-center')} />
         <SettingRow icon="privacy-tip" label="Privacy Policy" onPress={() => router.push('/info/privacy-policy')} />
         <SettingRow icon="info-outline" label="About Future Academy" onPress={() => router.push('/info/about')} showBorder={false} />
       </Section>
 
       {/* Danger Zone */}
-      <View className="px-4 py-8 mb-8">
+      <View className="px-4 py-8">
         <TouchableOpacity
           className="bg-red-50 dark:bg-neutral-900 rounded-xl border border-error-200 dark:border-error-900/50 flex-row items-center justify-center py-4"
           onPress={handleLogout}
@@ -156,6 +161,16 @@ export default function SettingsScreen() {
           <MaterialIcons name="logout" size={20} color="#ef4444" style={{ marginRight: 8 }} />
           <BodyText className="text-error-600 dark:text-error-500 font-semibold">Log Out</BodyText>
         </TouchableOpacity>
+      </View>
+
+      {/* Corporate Details & Compliance */}
+      <View className="px-4 pb-12 items-center">
+        <BodyText variant="subtle" size="xs" className="text-center mb-1">
+          Future Academy is a project of RMS GL (Ramenshuka Global Resources)
+        </BodyText>
+        <BodyText variant="subtle" size="xs" className="text-center font-medium text-emerald-600 dark:text-emerald-400">
+          Company Registered &bull; RC: 1919844
+        </BodyText>
       </View>
     </ScrollView>
   );

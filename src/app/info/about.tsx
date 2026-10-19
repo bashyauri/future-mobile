@@ -82,6 +82,24 @@ export default function AboutScreen() {
           </BodyText>
         </Card>
 
+        {/* Company Registration & CAC */}
+        <Card variant="bordered" padding="md" className="bg-white dark:bg-neutral-900 mb-6 border-emerald-500/30">
+          <View className="flex-row items-center mb-2">
+            <View className={`w-8 h-8 rounded-full items-center justify-center mr-2.5 ${isDark ? 'bg-emerald-950/60' : 'bg-emerald-100'}`}>
+              <MaterialIcons name="verified" size={18} color="#10b981" />
+            </View>
+            <View className="flex-1">
+              <BodyText className="font-bold text-xs uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                Company Registered
+              </BodyText>
+              <Heading size="sm">RC: 1919844</Heading>
+            </View>
+          </View>
+          <BodyText variant="subtle" size="sm" className="leading-relaxed">
+            Future Academy is a project of <BodyText className="font-semibold text-neutral-900 dark:text-white">RMS GL (Ramenshuka Global Resources)</BodyText>, registered under the Corporate Affairs Commission (CAC) of the Federal Republic of Nigeria.
+          </BodyText>
+        </Card>
+
         {/* Stats */}
         <Card variant="bordered" padding="none" className="bg-white dark:bg-neutral-900 mb-6">
           <View className="flex-row flex-wrap">
@@ -115,28 +133,42 @@ export default function AboutScreen() {
         <Card variant="bordered" padding="none" className="bg-white dark:bg-neutral-900 mb-6">
           <TouchableOpacity
             className="flex-row items-center p-4 border-b border-neutral-200 dark:border-neutral-800"
-            onPress={() => Linking.openURL('https://futureacademy.edu')}
+            onPress={() => Linking.openURL('https://wa.me/2347071100037?text=Hello%20Future%20Academy%2C%20I%20would%20like%20to%20make%20an%20enquiry')}
           >
-            <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-              <MaterialIcons name="language" size={20} color="#2563eb" />
+            <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${isDark ? 'bg-emerald-900/30' : 'bg-emerald-50'}`}>
+              <MaterialIcons name="chat" size={20} color="#10b981" />
             </View>
             <View className="flex-1">
-              <BodyText className="font-semibold">Website</BodyText>
-              <BodyText variant="subtle" size="sm">futureacademy.edu</BodyText>
+              <BodyText className="font-semibold">Company WhatsApp</BodyText>
+              <BodyText variant="subtle" size="sm">07071100037</BodyText>
             </View>
             <MaterialIcons name="open-in-new" size={20} color={isDark ? '#52525b' : '#a1a1aa'} />
           </TouchableOpacity>
 
           <TouchableOpacity
             className="flex-row items-center p-4 border-b border-neutral-200 dark:border-neutral-800"
-            onPress={() => Linking.openURL('mailto:info@futureacademy.edu')}
+            onPress={() => Linking.openURL('mailto:futureacademy-rm@gmail.com')}
           >
-            <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${isDark ? 'bg-green-900/30' : 'bg-green-50'}`}>
-              <MaterialIcons name="email" size={20} color="#22c55e" />
+            <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
+              <MaterialIcons name="email" size={20} color="#2563eb" />
             </View>
             <View className="flex-1">
-              <BodyText className="font-semibold">Email</BodyText>
-              <BodyText variant="subtle" size="sm">info@futureacademy.edu</BodyText>
+              <BodyText className="font-semibold">Direct Email & Support</BodyText>
+              <BodyText variant="subtle" size="sm">futureacademy-rm@gmail.com</BodyText>
+            </View>
+            <MaterialIcons name="open-in-new" size={20} color={isDark ? '#52525b' : '#a1a1aa'} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="flex-row items-center p-4 border-b border-neutral-200 dark:border-neutral-800"
+            onPress={() => Linking.openURL('mailto:noreply@futureacademy-rm.com')}
+          >
+            <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${isDark ? 'bg-neutral-800' : 'bg-neutral-100'}`}>
+              <MaterialIcons name="mark-email-read" size={20} color={isDark ? '#a1a1aa' : '#71717a'} />
+            </View>
+            <View className="flex-1">
+              <BodyText className="font-semibold">Official Correspondence</BodyText>
+              <BodyText variant="subtle" size="sm">noreply@futureacademy-rm.com</BodyText>
             </View>
             <MaterialIcons name="open-in-new" size={20} color={isDark ? '#52525b' : '#a1a1aa'} />
           </TouchableOpacity>
@@ -147,7 +179,7 @@ export default function AboutScreen() {
             </View>
             <View className="flex-1">
               <BodyText className="font-semibold">Location</BodyText>
-              <BodyText variant="subtle" size="sm">Nigeria</BodyText>
+              <BodyText variant="subtle" size="sm">Federal Republic of Nigeria</BodyText>
             </View>
           </View>
         </Card>
@@ -198,7 +230,7 @@ export default function AboutScreen() {
         </Card>
 
         <BodyText variant="subtle" size="sm" className="text-center mt-6 mb-4">
-          © 2026 Future Academy. All rights reserved.
+          © 2026 Future Academy &bull; A project of Ramenshuka Global Resources (RMS GL) &bull; RC: 1919844
         </BodyText>
       </ScrollView>
     </View>

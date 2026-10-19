@@ -47,24 +47,24 @@ export default function HelpCenterScreen() {
   const contactOptions = [
     {
       id: 1,
-      icon: 'email',
-      title: 'Email Support',
-      description: 'support@futureacademy.edu',
-      action: () => Linking.openURL('mailto:support@futureacademy.edu'),
+      icon: 'chat',
+      title: 'Company WhatsApp',
+      description: '07071100037 (Direct Chat)',
+      action: () => Linking.openURL('https://wa.me/2347071100037?text=Hello%20Future%20Academy%2C%20I%20need%20assistance'),
     },
     {
       id: 2,
-      icon: 'chat',
-      title: 'Live Chat',
-      description: 'Chat with our support team',
-      action: () => {},
+      icon: 'email',
+      title: 'Support & Inquiries',
+      description: 'futureacademy-rm@gmail.com',
+      action: () => Linking.openURL('mailto:futureacademy-rm@gmail.com'),
     },
     {
       id: 3,
-      icon: 'phone',
-      title: 'Call Us',
-      description: '+234 XXX XXX XXXX',
-      action: () => Linking.openURL('tel:+234XXXXXXXXXX'),
+      icon: 'mark-email-read',
+      title: 'Official / System Email',
+      description: 'noreply@futureacademy-rm.com',
+      action: () => Linking.openURL('mailto:noreply@futureacademy-rm.com'),
     },
   ];
 
@@ -156,6 +156,21 @@ export default function HelpCenterScreen() {
               <MaterialIcons name="chevron-right" size={24} color={isDark ? '#52525b' : '#a1a1aa'} />
             </TouchableOpacity>
           ))}
+        </Card>
+
+        {/* Corporate Registration & CAC */}
+        <Card variant="bordered" padding="md" className="mt-6 mb-8 bg-white dark:bg-neutral-900 border-emerald-500/30">
+          <View className="flex-row items-center mb-1.5">
+            <View className={`w-7 h-7 rounded-full items-center justify-center mr-2 ${isDark ? 'bg-emerald-950/60' : 'bg-emerald-100'}`}>
+              <MaterialIcons name="verified" size={16} color="#10b981" />
+            </View>
+            <BodyText className="font-bold text-xs uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              Company Registered &bull; RC: 1919844
+            </BodyText>
+          </View>
+          <BodyText variant="subtle" size="sm" className="leading-relaxed">
+            Future Academy is a project of <BodyText className="font-semibold text-neutral-900 dark:text-white">RMS GL (Ramenshuka Global Resources)</BodyText>, registered under the Corporate Affairs Commission (CAC) of the Federal Republic of Nigeria.
+          </BodyText>
         </Card>
       </ScrollView>
     </View>
