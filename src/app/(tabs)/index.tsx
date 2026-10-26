@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   RefreshControl,
   ScrollView,
@@ -73,7 +73,7 @@ export default function HomeScreen() {
     return <ParentDashboard />;
   }
 
-  const loadDashboard = async (): Promise<void> => {
+  const loadDashboard = useCallback(async (): Promise<void> => {
     try {
       const [subjectsRes, analyticsRes, subjectPerfRes, historyRes] =
         await Promise.all([
@@ -90,7 +90,7 @@ export default function HomeScreen() {
     } catch (e) {
       console.warn("Failed to load dashboard data", e);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -119,14 +119,20 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Auto-refresh when connection is restored
+  // Auto-refresh when connection is restored (offline → online transition only)
+  const prevConnected = useRef<boolean | null>(null);
   useEffect(() => {
-    if (netInfo.isConnected === true) {
+    const wasConnected = prevConnected.current;
+    prevConnected.current = netInfo.isConnected ?? null;
+
+    // Skip the initial mount (null → true) — initDashboard already handles that.
+    // Only reload when genuinely recovering from an offline state.
+    if (wasConnected === false && netInfo.isConnected === true) {
       loadDashboard().catch((error) => {
         console.warn("Failed to refresh after reconnection", error);
       });
     }
-  }, [netInfo.isConnected]);
+  }, [netInfo.isConnected, loadDashboard]);
 
   const onRefresh = async (): Promise<void> => {
     setIsRefreshing(true);
