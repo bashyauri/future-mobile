@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, TouchableOpacity, Linking, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -7,40 +7,75 @@ import { Heading, BodyText, Subheading } from '@/components/Typography';
 import { Card } from '@/components';
 import { useRouter } from 'expo-router';
 
+type HelpTopic = {
+  id: number;
+  icon: string;
+  title: string;
+  description: string;
+  details: string[];
+  actionLabel?: string;
+  actionRoute?: string;
+};
+
 export default function HelpCenterScreen() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const [expandedTopicId, setExpandedTopicId] = useState<number | null>(null);
 
-  const helpTopics = [
+  const helpTopics: HelpTopic[] = [
     {
       id: 1,
       icon: 'school',
       title: 'Getting Started',
       description: 'Learn how to set up your account and start learning',
-      route: '/info/help/getting-started',
+      details: [
+        'Complete your profile setup to tailor exams to your grade level.',
+        'Choose your primary exam goal (JAMB, WAEC, or Subject Practice).',
+        'Access interactive practice quizzes and video lessons directly from your Dashboard.',
+      ],
+      actionLabel: 'Go to Dashboard',
+      actionRoute: '/(tabs)',
     },
     {
       id: 2,
       icon: 'quiz',
       title: 'Practice & Quizzes',
-      description: 'How to take practice exams and quizzes',
-      route: '/info/help/practice-quizzes',
+      description: 'How to take practice exams and review solutions',
+      details: [
+        'Practice Mode: Pick specific subjects, topics, and past exam years.',
+        'JAMB Exam Mode: Simulate real exam conditions with timed 4-subject sets.',
+        'Comprehensive Review: Review step-by-step explanations for each question.',
+      ],
+      actionLabel: 'Start Practice',
+      actionRoute: '/(tabs)/practice-setup',
     },
     {
       id: 3,
       icon: 'payment',
       title: 'Subscription & Billing',
-      description: 'Manage your subscription and payment methods',
-      route: '/info/help/subscription',
+      description: 'Manage your subscription and unlock full content access',
+      details: [
+        'Take advantage of your free trial to test out quiz and lesson features.',
+        'Subscribe to monthly or yearly plans to access the complete question archive.',
+        'Instant activation upon verified payment with secure channels.',
+      ],
+      actionLabel: 'View Pricing & Plans',
+      actionRoute: '/pricing',
     },
     {
       id: 4,
       icon: 'account-circle',
       title: 'Account Settings',
-      description: 'Update your profile and preferences',
-      route: '/info/help/account',
+      description: 'Update your profile, theme, and security preferences',
+      details: [
+        'Switch between Dark Mode and Light Mode according to your preference.',
+        'Manage account security and update your profile details.',
+        'Access terms, privacy policies, and support directly from Settings.',
+      ],
+      actionLabel: 'Go to Settings',
+      actionRoute: '/(tabs)/settings',
     },
   ];
 
@@ -83,6 +118,10 @@ export default function HelpCenterScreen() {
     },
   ];
 
+  const toggleTopic = (id: number) => {
+    setExpandedTopicId((current) => (current === id ? null : id));
+  };
+
   return (
     <View className={`flex-1 ${isDark ? 'bg-neutral-950' : 'bg-neutral-50'}`}>
       <ScrollView
@@ -108,22 +147,68 @@ export default function HelpCenterScreen() {
         {/* Quick Help Topics */}
         <Subheading size="lg" className="mb-3">Quick Help</Subheading>
         <Card variant="bordered" padding="none" className="mb-6 bg-white dark:bg-neutral-900">
-          {helpTopics.map((topic) => (
-            <TouchableOpacity
-              key={topic.id}
-              className="flex-row items-center p-4 border-b border-neutral-200 dark:border-neutral-800 last:border-b-0"
-              onPress={() => router.push(topic.route)}
-            >
-              <View className={`w-12 h-12 rounded-xl items-center justify-center mr-4 ${isDark ? 'bg-primary-900/30' : 'bg-primary-50'}`}>
-                <MaterialIcons name={topic.icon as any} size={24} color="#4f46e5" />
+          {helpTopics.map((topic) => {
+            const isExpanded = expandedTopicId === topic.id;
+
+            return (
+              <View
+                key={topic.id}
+                className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0"
+              >
+                <TouchableOpacity
+                  className="flex-row items-center p-4"
+                  onPress={() => toggleTopic(topic.id)}
+                  activeOpacity={0.7}
+                >
+                  <View className={`w-12 h-12 rounded-xl items-center justify-center mr-4 ${isDark ? 'bg-primary-900/30' : 'bg-primary-50'}`}>
+                    <MaterialIcons name={topic.icon as any} size={24} color="#4f46e5" />
+                  </View>
+                  <View className="flex-1">
+                    <BodyText className="font-semibold mb-1">{topic.title}</BodyText>
+                    <BodyText variant="subtle" size="sm">{topic.description}</BodyText>
+                  </View>
+                  <MaterialIcons
+                    name={isExpanded ? 'expand-less' : 'expand-more'}
+                    size={24}
+                    color={isDark ? '#a1a1aa' : '#71717a'}
+                  />
+                </TouchableOpacity>
+
+                {isExpanded && (
+                  <View className="px-4 pb-4 pt-1 bg-neutral-50/70 dark:bg-neutral-800/40">
+                    <View className="gap-2 mb-3">
+                      {topic.details.map((point, idx) => (
+                        <View key={idx} className="flex-row items-start">
+                          <MaterialIcons
+                            name="check-circle"
+                            size={16}
+                            color="#4f46e5"
+                            style={{ marginTop: 2, marginRight: 8 }}
+                          />
+                          <BodyText size="sm" className="flex-1 text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                            {point}
+                          </BodyText>
+                        </View>
+                      ))}
+                    </View>
+
+                    {topic.actionRoute && topic.actionLabel && (
+                      <TouchableOpacity
+                        onPress={() => router.push(topic.actionRoute as any)}
+                        className="mt-1 flex-row items-center justify-center bg-primary-600 dark:bg-primary-500 py-2.5 px-4 rounded-xl"
+                        activeOpacity={0.8}
+                      >
+                        <BodyText className="text-white font-semibold text-sm mr-1">
+                          {topic.actionLabel}
+                        </BodyText>
+                        <MaterialIcons name="arrow-forward" size={16} color="#ffffff" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </View>
-              <View className="flex-1">
-                <BodyText className="font-semibold mb-1">{topic.title}</BodyText>
-                <BodyText variant="subtle" size="sm">{topic.description}</BodyText>
-              </View>
-              <MaterialIcons name="chevron-right" size={24} color={isDark ? '#52525b' : '#a1a1aa'} />
-            </TouchableOpacity>
-          ))}
+            );
+          })}
         </Card>
 
         {/* FAQ Section */}

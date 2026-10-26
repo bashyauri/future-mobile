@@ -16,7 +16,7 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
-    const hasPendingNavigation = segments.length === 0;
+    const hasPendingNavigation = (segments as string[]).length === 0;
 
     if (hasPendingNavigation) {
       return;

@@ -17,6 +17,7 @@ type User = {
   email_verified_at?: string | null;
   has_completed_onboarding: boolean;
   account_type?: string;
+  role?: string;
   has_active_subscription?: boolean;
   on_trial?: boolean;
   trial_ends_at?: string | null;
