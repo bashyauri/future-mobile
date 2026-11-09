@@ -173,6 +173,21 @@ export default function AboutScreen() {
             <MaterialIcons name="open-in-new" size={20} color={isDark ? '#52525b' : '#a1a1aa'} />
           </TouchableOpacity>
 
+          <TouchableOpacity
+            className="flex-row items-center p-4 border-b border-neutral-200 dark:border-neutral-800"
+            onPress={() => Linking.openURL('https://futureacademy-rm.com')}
+          >
+            <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${isDark ? 'bg-indigo-900/30' : 'bg-indigo-50'}`}>
+              <MaterialIcons name="language" size={20} color="#6366f1" />
+            </View>
+            <View className="flex-1">
+              <BodyText className="font-semibold">Official Website</BodyText>
+              <BodyText variant="subtle" size="sm">futureacademy-rm.com</BodyText>
+            </View>
+            <MaterialIcons name="open-in-new" size={20} color={isDark ? '#52525b' : '#a1a1aa'} />
+          </TouchableOpacity>
+
+
           <View className="flex-row items-center p-4">
             <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${isDark ? 'bg-amber-900/30' : 'bg-amber-50'}`}>
               <MaterialIcons name="location-on" size={20} color="#f59e0b" />
@@ -184,45 +199,18 @@ export default function AboutScreen() {
           </View>
         </Card>
 
-        {/* Social Media */}
-        <Subheading size="lg" className="mb-3">Follow Us</Subheading>
-        <Card variant="bordered" padding="none" className="bg-white dark:bg-neutral-900 mb-6">
-          <View className="flex-row justify-around p-4">
-            <TouchableOpacity onPress={() => openSocial('https://twitter.com/futureacademy')}>
-              <View className={`w-12 h-12 rounded-full items-center justify-center ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-                <MaterialIcons name="alternate-email" size={24} color="#1DA1F2" />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => openSocial('https://facebook.com/futureacademy')}>
-              <View className={`w-12 h-12 rounded-full items-center justify-center ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-                <MaterialIcons name="facebook" size={24} color="#4267B2" />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => openSocial('https://instagram.com/futureacademy')}>
-              <View className={`w-12 h-12 rounded-full items-center justify-center ${isDark ? 'bg-pink-900/30' : 'bg-pink-50'}`}>
-                <MaterialIcons name="camera-alt" size={24} color="#E4405F" />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => openSocial('https://linkedin.com/company/futureacademy')}>
-              <View className={`w-12 h-12 rounded-full items-center justify-center ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'}`}>
-                <MaterialIcons name="work" size={24} color="#0077B5" />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </Card>
-
         {/* Legal Links */}
         <Card variant="bordered" padding="none" className="bg-white dark:bg-neutral-900">
           <TouchableOpacity
             className="flex-row items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-800"
-            onPress={() => {}}
+            onPress={() => router.push('/info/terms-of-service' as any)}
           >
             <BodyText>Terms of Service</BodyText>
             <MaterialIcons name="chevron-right" size={24} color={isDark ? '#52525b' : '#a1a1aa'} />
           </TouchableOpacity>
           <TouchableOpacity
             className="flex-row items-center justify-between p-4"
-            onPress={() => {}}
+            onPress={() => router.push('/info/privacy-policy')}
           >
             <BodyText>Privacy Policy</BodyText>
             <MaterialIcons name="chevron-right" size={24} color={isDark ? '#52525b' : '#a1a1aa'} />

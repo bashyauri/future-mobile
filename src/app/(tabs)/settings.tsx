@@ -6,6 +6,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { Button, Card } from '@/components';
 import { Heading, Subheading, BodyText } from '@/components/Typography';
 import { useRouter } from 'expo-router';
+import api from '@/lib/api';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -15,6 +16,56 @@ export default function SettingsScreen() {
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const confirmDeleteAccount = async () => {
+    try {
+      setIsDeleting(true);
+      await api.delete('/user');
+      await logout();
+      Alert.alert(
+        "Account Deleted",
+        "Your account and all associated data have been permanently removed."
+      );
+      router.replace('/(auth)/login');
+    } catch (error: any) {
+      console.warn('Account deletion error:', error);
+      Alert.alert(
+        "Deletion Failed",
+        error.response?.data?.message || "Could not delete your account. Please contact support."
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        "Are you sure you want to permanently delete your account? This action cannot be undone."
+      );
+      if (confirmed) {
+        confirmDeleteAccount();
+      }
+      return;
+    }
+
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to permanently delete your account? All your personal details, exam history, and progress will be erased. This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete My Account",
+          onPress: confirmDeleteAccount,
+          style: "destructive",
+        },
+      ]
+    );
+  };
 
   const handleLogout = () => {
     console.log('Logout button pressed');
@@ -155,11 +206,22 @@ export default function SettingsScreen() {
       {/* Danger Zone */}
       <View className="px-4 py-8">
         <TouchableOpacity
-          className="bg-red-50 dark:bg-neutral-900 rounded-xl border border-error-200 dark:border-error-900/50 flex-row items-center justify-center py-4"
+          className="bg-neutral-100 dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 flex-row items-center justify-center py-4"
           onPress={handleLogout}
         >
-          <MaterialIcons name="logout" size={20} color="#ef4444" style={{ marginRight: 8 }} />
-          <BodyText className="text-error-600 dark:text-error-500 font-semibold">Log Out</BodyText>
+          <MaterialIcons name="logout" size={20} color={isDark ? '#d4d4d8' : '#52525b'} style={{ marginRight: 8 }} />
+          <BodyText className="text-neutral-700 dark:text-neutral-200 font-semibold">Log Out</BodyText>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          className="bg-red-50 dark:bg-red-950/30 rounded-xl border border-error-200 dark:border-error-900/50 flex-row items-center justify-center py-4 mt-3"
+          onPress={handleDeleteAccount}
+          disabled={isDeleting}
+        >
+          <MaterialIcons name="delete-forever" size={20} color="#ef4444" style={{ marginRight: 8 }} />
+          <BodyText className="text-error-600 dark:text-error-400 font-semibold">
+            {isDeleting ? "Deleting Account..." : "Delete Account"}
+          </BodyText>
         </TouchableOpacity>
       </View>
 

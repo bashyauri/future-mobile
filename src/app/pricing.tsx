@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, Alert, TouchableOpacity } from "react-native";
+import { View, ScrollView, Alert, TouchableOpacity, Linking } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
-import * as Linking from "expo-linking";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Card, Button } from "@/components";
@@ -11,26 +9,25 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
 import { CardSkeleton } from "@/components/Skeleton";
 
-// Make sure the web browser can be dismissed on android
-WebBrowser.maybeCompleteAuthSession();
-
 export default function PricingScreen() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
   const params = useLocalSearchParams();
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
-  
+  const isDark = theme === "dark";
+
   const [plans, setPlans] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [subscribingTo, setSubscribingTo] = useState<string | null>(null);
-  const [paymentType, setPaymentType] = useState<'one_time' | 'recurring'>('recurring');
+  const [refreshing, setRefreshing] = useState(false);
   const [linkedStudents, setLinkedStudents] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
   const studentId = params.studentId ? parseInt(params.studentId as string, 10) : null;
-  const isParent = user?.account_type === 'guardian' || user?.account_type === 'school' || user?.account_type === 'community';
+  const isParent =
+    user?.account_type === "guardian" ||
+    user?.account_type === "school" ||
+    user?.account_type === "community";
   const isAlreadySubscribed = user?.has_active_subscription === true;
 
   useEffect(() => {
@@ -65,89 +62,46 @@ export default function PricingScreen() {
     }
   };
 
-  const handleSubscribe = async (planKey: string) => {
+  const handleActivateViaWhatsApp = (planKey: string, amount: number) => {
     const targetStudentId = selectedStudentId || studentId;
+    const targetStudentName = linkedStudents.find((s) => s.id === targetStudentId)?.name;
 
-    if (isParent && !targetStudentId) {
-      Alert.alert("Error", "Please select a student to pay for.");
-      return;
+    let message = `Hello Future Academy Support, I would like to activate the ${planKey.toUpperCase()} plan (₦${amount?.toLocaleString()}) for my account.`;
+
+    if (user?.email) {
+      message += `\nAccount Email: ${user.email}`;
     }
 
-    try {
-      setSubscribingTo(planKey);
-
-      const payload = {
-        plan: planKey,
-        type: paymentType,
-        student_id: targetStudentId,
-      };
-
-      const res = await api.post("/payment/initialize", payload);
-      
-      const { authorization_url, reference } = res.data?.data ?? {};
-      
-      if (!authorization_url) {
-        throw new Error("No authorization URL returned");
-      }
-
-      const returnUrl = Linking.createURL("payment/callback");
-      
-      const authResult = await WebBrowser.openAuthSessionAsync(
-        authorization_url,
-        returnUrl
-      );
-
-      if (authResult.type === "success") {
-        const callbackUrl = authResult.url ?? "";
-        const parsedUrl = callbackUrl ? Linking.parse(callbackUrl) : null;
-        const referenceFromUrl =
-          typeof parsedUrl?.queryParams?.reference === "string"
-            ? parsedUrl.queryParams.reference
-            : null;
-
-        await verifyPayment(referenceFromUrl || reference);
-      } else {
-        // Browser was dismissed without a deep-link redirect (e.g. user tapped
-        // the Android back button, or Paystack closed the window after payment).
-        // Silently attempt verification using the reference from /payment/initialize
-        // in case the payment actually completed but the deep link never fired.
-        if (reference) {
-          try {
-            setSubscribingTo("verify");
-            await api.post("/payment/verify", { reference });
-            await refreshUser();
-            Alert.alert("Success", "Your subscription is now active!");
-            router.replace("/(tabs)");
-          } catch {
-            // Verification failed — payment likely didn't complete. No alert needed.
-            console.log("Silent verify after browser dismiss: payment not completed");
-          } finally {
-            setSubscribingTo(null);
-          }
-        }
-      }
-
-    } catch (e: any) {
-      console.warn("Payment init error:", e);
-      Alert.alert("Error", e.response?.data?.message || "Could not start payment process.");
-    } finally {
-      setSubscribingTo(null);
+    if (targetStudentId) {
+      message += `\nStudent: ${targetStudentName ? `${targetStudentName} (ID: ${targetStudentId})` : `Student ID: ${targetStudentId}`}`;
     }
+
+    const encoded = encodeURIComponent(message);
+    Linking.openURL(`https://wa.me/2347071100037?text=${encoded}`);
   };
 
-  const verifyPayment = async (reference: string) => {
-    try {
-      setSubscribingTo("verify");
-      await api.post("/payment/verify", { reference });
+  const handleOpenWebsite = () => {
+    Linking.openURL("https://futureacademy-rm.com");
+  };
 
-      await refreshUser();
-      Alert.alert("Success", "Your subscription is now active!");
-      router.replace("/(tabs)");
-    } catch (e: any) {
-      console.warn("Payment verify error:", e);
-      Alert.alert("Payment Failed", e.response?.data?.message || "Payment verification failed.");
+  const handleRefreshStatus = async () => {
+    try {
+      setRefreshing(true);
+      const updated = await refreshUser();
+      if (updated?.has_active_subscription) {
+        Alert.alert("Subscription Active", "Your account has full premium access!", [
+          { text: "Go to Dashboard", onPress: () => router.replace("/(tabs)") },
+        ]);
+      } else {
+        Alert.alert(
+          "Subscription Not Detected",
+          "Your subscription has not been confirmed yet. If you just made a payment via transfer or on the website, please allow a moment or contact our WhatsApp support desk.",
+        );
+      }
+    } catch (e) {
+      Alert.alert("Check Failed", "Could not verify subscription status. Please check your internet connection.");
     } finally {
-      setSubscribingTo(null);
+      setRefreshing(false);
     }
   };
 
@@ -185,7 +139,7 @@ export default function PricingScreen() {
               You're already subscribed!
             </Heading>
             <BodyText className="mt-2 text-center text-neutral-500 dark:text-neutral-400">
-              You have full access to all premium features. Enjoy your learning journey.
+              You have full access to all premium features, mock exams, and lessons.
             </BodyText>
             <Button
               variant="primary"
@@ -220,6 +174,24 @@ export default function PricingScreen() {
       </View>
 
       <ScrollView className="flex-1 px-4 pt-6" showsVerticalScrollIndicator={false}>
+        {/* Activation Guidance Banner */}
+        <Card variant="bordered" padding="md" className="mb-6 bg-white dark:bg-neutral-900 border-primary-500/30">
+          <View className="flex-row items-center mb-2">
+            <View className={`w-8 h-8 rounded-full items-center justify-center mr-2.5 ${isDark ? "bg-primary-950/60" : "bg-primary-100"}`}>
+              <MaterialIcons name="verified" size={18} color="#4f46e5" />
+            </View>
+            <View className="flex-1">
+              <BodyText className="font-bold text-xs uppercase tracking-wider text-primary-600 dark:text-primary-400">
+                How to Activate
+              </BodyText>
+              <Heading size="sm">Direct Activation & Support</Heading>
+            </View>
+          </View>
+          <BodyText variant="subtle" size="sm" className="leading-relaxed">
+            Subscriptions can be activated online at <BodyText className="font-semibold text-neutral-900 dark:text-white">futureacademy-rm.com</BodyText> or via our official WhatsApp desk using Bank Transfer, Card, or USSD. Once paid, your account unlocks instantly.
+          </BodyText>
+        </Card>
+
         {isParent && (
           <View className="mb-6">
             {!studentId && (
@@ -244,15 +216,15 @@ export default function PricingScreen() {
                         onPress={() => setSelectedStudentId(student.id)}
                         className={`px-4 py-2 rounded-full border-2 ${
                           selectedStudentId === student.id
-                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
-                            : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'
+                            ? "border-primary-500 bg-primary-50 dark:bg-primary-900/30"
+                            : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
                         }`}
                       >
                         <BodyText
                           className={`text-sm ${
                             selectedStudentId === student.id
-                              ? 'text-primary-700 dark:text-primary-300 font-semibold'
-                              : 'text-neutral-700 dark:text-neutral-300'
+                              ? "text-primary-700 dark:text-primary-300 font-semibold"
+                              : "text-neutral-700 dark:text-neutral-300"
                           }`}
                         >
                           {student.name}
@@ -267,60 +239,12 @@ export default function PricingScreen() {
               <View className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-xl flex-row items-center">
                 <MaterialIcons name="info" size={24} color="#3b82f6" />
                 <BodyText className="ml-3 flex-1 text-blue-900 dark:text-blue-100">
-                  You are subscribing for: {studentId ? `Student ID: ${studentId}` : linkedStudents.find(s => s.id === selectedStudentId)?.name}
+                  You are subscribing for: {studentId ? `Student ID: ${studentId}` : linkedStudents.find((s) => s.id === selectedStudentId)?.name}
                 </BodyText>
               </View>
             )}
           </View>
         )}
-
-        <View className="mb-6">
-          <Subheading size="md" className="mb-2">Payment Type</Subheading>
-          <View className="flex-row gap-2">
-            <TouchableOpacity
-              onPress={() => setPaymentType('one_time')}
-              className={`flex-1 px-4 py-3 rounded-xl border-2 ${
-                paymentType === 'one_time'
-                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
-                  : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'
-              }`}
-            >
-              <BodyText
-                className={`text-center font-semibold ${
-                  paymentType === 'one_time'
-                    ? 'text-primary-700 dark:text-primary-300'
-                    : 'text-neutral-700 dark:text-neutral-300'
-                }`}
-              >
-                One-Time
-              </BodyText>
-              <Caption className="text-center text-neutral-500 dark:text-neutral-400 text-xs mt-1">
-                Pay once
-              </Caption>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setPaymentType('recurring')}
-              className={`flex-1 px-4 py-3 rounded-xl border-2 ${
-                paymentType === 'recurring'
-                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
-                  : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900'
-              }`}
-            >
-              <BodyText
-                className={`text-center font-semibold ${
-                  paymentType === 'recurring'
-                    ? 'text-primary-700 dark:text-primary-300'
-                    : 'text-neutral-700 dark:text-neutral-300'
-                }`}
-              >
-                Recurring
-              </BodyText>
-              <Caption className="text-center text-neutral-500 dark:text-neutral-400 text-xs mt-1">
-                Auto-renew
-              </Caption>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         {loading ? (
           <View className="gap-4">
@@ -328,7 +252,7 @@ export default function PricingScreen() {
             <CardSkeleton />
           </View>
         ) : plans ? (
-          <View className="gap-6 pb-12">
+          <View className="gap-6 pb-6">
             {Object.entries(plans).map(([key, plan]: [string, any]) => (
               <Card
                 key={key}
@@ -346,13 +270,13 @@ export default function PricingScreen() {
                     </Caption>
                   </View>
                 )}
-                
+
                 <Subheading size="xl" className="capitalize mb-1">{key}</Subheading>
                 <Heading size="2xl" className="mb-4">
                   ₦{plan.amount.toLocaleString()}
-                  <Caption> / {key === 'monthly' ? 'month' : 'year'}</Caption>
+                  <Caption> / {key === "monthly" ? "month" : "year"}</Caption>
                 </Heading>
-                
+
                 <View className="gap-3 mb-6">
                   {plan.features?.map((feature: string, index: number) => (
                     <View key={index} className="flex-row items-center">
@@ -368,15 +292,29 @@ export default function PricingScreen() {
                   )}
                 </View>
 
-                <Button
-                  variant={key === "yearly" ? "primary" : "outline"}
-                  fullWidth
-                  loading={subscribingTo === key || subscribingTo === "verify"}
-                  disabled={subscribingTo !== null}
-                  onPress={() => handleSubscribe(key)}
-                >
-                  {subscribingTo === "verify" ? "Verifying..." : `Subscribe ${key}`}
-                </Button>
+                <View className="gap-2.5">
+                  <TouchableOpacity
+                    onPress={() => handleActivateViaWhatsApp(key, plan.amount)}
+                    className="bg-emerald-600 dark:bg-emerald-500 py-3.5 px-4 rounded-xl flex-row items-center justify-center"
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="chat" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                    <BodyText className="text-white font-semibold text-base">
+                      Activate via WhatsApp
+                    </BodyText>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={handleOpenWebsite}
+                    className="border border-neutral-300 dark:border-neutral-700 py-3 px-4 rounded-xl flex-row items-center justify-center bg-white dark:bg-neutral-900"
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons name="language" size={18} color={isDark ? "#d4d4d8" : "#52525b"} style={{ marginRight: 8 }} />
+                    <BodyText className="text-neutral-700 dark:text-neutral-300 font-medium text-sm">
+                      Activate on Website (futureacademy-rm.com)
+                    </BodyText>
+                  </TouchableOpacity>
+                </View>
               </Card>
             ))}
           </View>
@@ -386,6 +324,26 @@ export default function PricingScreen() {
             <BodyText className="mt-4 text-center">No plans available at the moment.</BodyText>
           </View>
         )}
+
+        {/* Sync / Refresh Subscription Status Card */}
+        <Card variant="bordered" padding="md" className="mb-12 bg-white dark:bg-neutral-900">
+          <View className="items-center text-center">
+            <MaterialIcons name="sync" size={28} color="#4f46e5" className="mb-2" />
+            <Heading size="sm" className="mb-1 text-center">Already Paid?</Heading>
+            <BodyText variant="subtle" size="sm" className="text-center mb-4 leading-relaxed">
+              If you made a payment via Bank Transfer or online on our portal, tap below to sync your subscription status immediately.
+            </BodyText>
+            <Button
+              variant="outline"
+              fullWidth
+              loading={refreshing}
+              disabled={refreshing}
+              onPress={handleRefreshStatus}
+            >
+              {refreshing ? "Checking Status..." : "Refresh Subscription Status"}
+            </Button>
+          </View>
+        </Card>
       </ScrollView>
     </View>
   );

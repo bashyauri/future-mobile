@@ -1,3 +1,5 @@
+const { withGradleProperties, AndroidConfig } = require("@expo/config-plugins");
+
 const buildProfile = process.env.EAS_BUILD_PROFILE ?? "development";
 const isDevelopment = buildProfile === "development";
 const isPreview = buildProfile === "preview";
@@ -13,6 +15,26 @@ const androidPackage = isDevelopment
   : isPreview
     ? "com.bashyauri.mobile.preview"
     : "com.bashyauri.mobile";
+
+/**
+ * Expo Config Plugin to ensure R8 code minification and resource shrinking
+ * are enabled in release builds, satisfying Play Store DEX optimization requirements.
+ */
+const withR8Optimization = (config) => {
+  return withGradleProperties(config, (gradleConfig) => {
+    AndroidConfig.BuildProperties.updateAndroidBuildProperty(
+      gradleConfig.modResults,
+      "android.enableMinifyInReleaseBuilds",
+      "true"
+    );
+    AndroidConfig.BuildProperties.updateAndroidBuildProperty(
+      gradleConfig.modResults,
+      "android.enableShrinkResourcesInReleaseBuilds",
+      "true"
+    );
+    return gradleConfig;
+  });
+};
 
 module.exports = {
   expo: {
@@ -67,6 +89,7 @@ module.exports = {
       "expo-secure-store",
       "expo-sqlite",
       "expo-web-browser",
+      withR8Optimization,
     ],
     experiments: {
       typedRoutes: true,

@@ -31,8 +31,8 @@ export default function PrivacyPolicyScreen() {
       content: 'We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the Internet is 100% secure.',
     },
     {
-      title: 'Your Rights',
-      content: 'You have the right to access, correct, or delete your personal information. You can also opt out of marketing communications at any time. To exercise these rights, please contact us at privacy@futureacademy.edu.',
+      title: 'Your Rights & Account Deletion',
+      content: 'You have the right to access, correct, or permanently delete your personal information. You can delete your account directly inside the app under Settings > Delete Account, or request deletion by emailing futureacademy-rm@gmail.com.',
     },
     {
       title: 'Children\'s Privacy',
@@ -44,7 +44,7 @@ export default function PrivacyPolicyScreen() {
     },
     {
       title: 'Contact Us',
-      content: 'If you have any questions about this Privacy Policy, please contact us at privacy@futureacademy.edu or +234 XXX XXX XXXX.',
+      content: 'If you have any questions about this Privacy Policy, please contact us at futureacademy-rm@gmail.com, noreply@futureacademy-rm.com, or WhatsApp at +234 707 110 0037.',
     },
   ];
 
