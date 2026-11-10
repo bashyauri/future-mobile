@@ -19,6 +19,10 @@ type AnalyticsOverview = {
   average_score: number | null;
   total_time_spent: number;
   study_streak: number;
+  mock_exams_taken?: number;
+  best_mock_score?: number;
+  videos_watched?: number;
+  total_videos?: number;
 };
 
 type SubjectPerformance = {
@@ -172,15 +176,15 @@ export default function StudentAnalyticsScreen() {
         }
       >
         {/* ─── Overview Stats ─── */}
-        <View className="flex-row justify-between mb-4">
-          {/* Streak */}
+        <View className="flex-row mb-3">
+          {/* Day Streak */}
           <View
-            className={`flex-1 mr-2 rounded-2xl p-4 items-center ${
+            className={`flex-1 mr-1.5 rounded-2xl p-3 items-center ${
               isDark ? "bg-neutral-900 border border-neutral-800" : "bg-white border border-neutral-100"
             }`}
           >
             <View
-              className="w-10 h-10 rounded-xl items-center justify-center mb-2"
+              className="w-9 h-9 rounded-xl items-center justify-center mb-1.5"
               style={{
                 backgroundColor: isDark
                   ? "rgba(249,115,22,0.15)"
@@ -189,12 +193,12 @@ export default function StudentAnalyticsScreen() {
             >
               <MaterialIcons
                 name="local-fire-department"
-                size={22}
+                size={20}
                 color="#ea580c"
               />
             </View>
             <Text
-              className={`text-2xl font-bold ${
+              className={`text-xl font-bold ${
                 isDark ? "text-white" : "text-neutral-900"
               }`}
             >
@@ -205,28 +209,28 @@ export default function StudentAnalyticsScreen() {
                 isDark ? "text-neutral-400" : "text-neutral-500"
               }`}
             >
-              Day Streak
+              Streak
             </Text>
           </View>
 
           {/* Quizzes */}
           <View
-            className={`flex-1 mx-1 rounded-2xl p-4 items-center ${
+            className={`flex-1 mx-1.5 rounded-2xl p-3 items-center ${
               isDark ? "bg-neutral-900 border border-neutral-800" : "bg-white border border-neutral-100"
             }`}
           >
             <View
-              className="w-10 h-10 rounded-xl items-center justify-center mb-2"
+              className="w-9 h-9 rounded-xl items-center justify-center mb-1.5"
               style={{
                 backgroundColor: isDark
                   ? "rgba(99,102,241,0.15)"
                   : "#eef2ff",
               }}
             >
-              <MaterialIcons name="quiz" size={22} color="#4f46e5" />
+              <MaterialIcons name="quiz" size={20} color="#4f46e5" />
             </View>
             <Text
-              className={`text-2xl font-bold ${
+              className={`text-xl font-bold ${
                 isDark ? "text-white" : "text-neutral-900"
               }`}
             >
@@ -241,24 +245,93 @@ export default function StudentAnalyticsScreen() {
             </Text>
           </View>
 
-          {/* Avg Score */}
+          {/* Mock Exams */}
           <View
-            className={`flex-1 ml-2 rounded-2xl p-4 items-center ${
+            className={`flex-1 ml-1.5 rounded-2xl p-3 items-center ${
               isDark ? "bg-neutral-900 border border-neutral-800" : "bg-white border border-neutral-100"
             }`}
           >
             <View
-              className="w-10 h-10 rounded-xl items-center justify-center mb-2"
+              className="w-9 h-9 rounded-xl items-center justify-center mb-1.5"
+              style={{
+                backgroundColor: isDark
+                  ? "rgba(124,58,237,0.15)"
+                  : "#f5f3ff",
+              }}
+            >
+              <MaterialIcons name="timer" size={20} color="#7c3aed" />
+            </View>
+            <Text
+              className={`text-xl font-bold ${
+                isDark ? "text-white" : "text-neutral-900"
+              }`}
+            >
+              {overview?.mock_exams_taken ?? 0}
+            </Text>
+            <Text
+              className={`text-xs ${
+                isDark ? "text-neutral-400" : "text-neutral-500"
+              }`}
+            >
+              {overview?.best_mock_score
+                ? `Best: ${Math.round(overview.best_mock_score)}%`
+                : "Mock Exams"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Stats Row 2: Videos Watched, Avg Score */}
+        <View className="flex-row mb-4">
+          {/* Videos Watched */}
+          <View
+            className={`flex-1 mr-1.5 rounded-2xl p-3 items-center ${
+              isDark ? "bg-neutral-900 border border-neutral-800" : "bg-white border border-neutral-100"
+            }`}
+          >
+            <View
+              className="w-9 h-9 rounded-xl items-center justify-center mb-1.5"
+              style={{
+                backgroundColor: isDark
+                  ? "rgba(22,163,74,0.15)"
+                  : "#f0fdf4",
+              }}
+            >
+              <MaterialIcons name="play-circle" size={20} color="#16a34a" />
+            </View>
+            <Text
+              className={`text-xl font-bold ${
+                isDark ? "text-white" : "text-neutral-900"
+              }`}
+            >
+              {overview?.videos_watched ?? 0}
+            </Text>
+            <Text
+              className={`text-xs ${
+                isDark ? "text-neutral-400" : "text-neutral-500"
+              }`}
+            >
+              {overview?.total_videos ? `/ ${overview.total_videos} Videos` : "Videos"}
+            </Text>
+          </View>
+
+          {/* Avg Score */}
+          <View
+            className={`flex-1 ml-1.5 rounded-2xl p-3 items-center ${
+              isDark ? "bg-neutral-900 border border-neutral-800" : "bg-white border border-neutral-100"
+            }`}
+          >
+            <View
+              className="w-9 h-9 rounded-xl items-center justify-center mb-1.5"
               style={{
                 backgroundColor: isDark
                   ? "rgba(16,185,129,0.15)"
                   : "#d1fae5",
               }}
             >
-              <MaterialIcons name="analytics" size={22} color="#10b981" />
+              <MaterialIcons name="analytics" size={20} color="#10b981" />
             </View>
             <Text
-              className={`text-2xl font-bold ${
+              className={`text-xl font-bold ${
                 isDark ? "text-white" : "text-neutral-900"
               }`}
             >

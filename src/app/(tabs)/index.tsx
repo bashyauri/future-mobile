@@ -27,6 +27,10 @@ type AnalyticsOverview = {
   average_score: number | null;
   total_time_spent: number;
   study_streak: number;
+  mock_exams_taken?: number;
+  best_mock_score?: number;
+  videos_watched?: number;
+  total_videos?: number;
 };
 
 type SubjectPerformance = {
@@ -229,28 +233,17 @@ export default function HomeScreen() {
               <CardSkeleton />
               <CardSkeleton />
             </View>
-            <View className="flex-row justify-between mb-4">
-              <Card
-                variant="bordered"
-                className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
-              >
-                <View className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 mb-2" />
-                <View className="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded" />
-              </Card>
-              <Card
-                variant="bordered"
-                className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
-              >
-                <View className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 mb-2" />
-                <View className="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded" />
-              </Card>
-              <Card
-                variant="bordered"
-                className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
-              >
-                <View className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 mb-2" />
-                <View className="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded" />
-              </Card>
+            <View className="flex-row flex-wrap justify-between mb-2">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Card
+                  key={i}
+                  variant="bordered"
+                  className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+                >
+                  <View className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 mb-2" />
+                  <View className="w-8 h-8 bg-neutral-200 dark:bg-neutral-800 rounded" />
+                </Card>
+              ))}
             </View>
             <CardSkeleton />
             <CardSkeleton />
@@ -418,10 +411,10 @@ export default function HomeScreen() {
               Your Progress
             </Subheading>
 
-            <View className="flex-row justify-between mb-4">
+            <View className="flex-row flex-wrap justify-between mb-2">
               <Card
                 variant="bordered"
-                className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
+                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
               >
                 <MaterialIcons
                   name="local-fire-department"
@@ -441,7 +434,25 @@ export default function HomeScreen() {
 
               <Card
                 variant="bordered"
-                className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
+                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+              >
+                <MaterialIcons name="play-circle" size={24} color="#16a34a" />
+                <Heading
+                  size="lg"
+                  className="mt-2 text-neutral-900 dark:text-white"
+                >
+                  {analytics?.videos_watched ?? 0}
+                </Heading>
+                <Caption className="text-neutral-500 text-center">
+                  {analytics?.total_videos
+                    ? `/ ${analytics.total_videos} Videos`
+                    : "Videos Watched"}
+                </Caption>
+              </Card>
+
+              <Card
+                variant="bordered"
+                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
               >
                 <MaterialIcons name="quiz" size={24} color="#4f46e5" />
                 <Heading
@@ -457,7 +468,25 @@ export default function HomeScreen() {
 
               <Card
                 variant="bordered"
-                className="w-[31%] bg-white dark:bg-neutral-900 items-center py-4"
+                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+              >
+                <MaterialIcons name="timer" size={24} color="#7c3aed" />
+                <Heading
+                  size="lg"
+                  className="mt-2 text-neutral-900 dark:text-white"
+                >
+                  {analytics?.mock_exams_taken ?? 0}
+                </Heading>
+                <Caption className="text-neutral-500 text-center">
+                  {analytics?.best_mock_score
+                    ? `Best: ${Math.round(analytics.best_mock_score)}%`
+                    : "Mock Exams"}
+                </Caption>
+              </Card>
+
+              <Card
+                variant="bordered"
+                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
               >
                 <MaterialIcons name="analytics" size={24} color="#10b981" />
                 <Heading
@@ -470,6 +499,22 @@ export default function HomeScreen() {
                 </Heading>
                 <Caption className="text-neutral-500 text-center">
                   Avg. Score
+                </Caption>
+              </Card>
+
+              <Card
+                variant="bordered"
+                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+              >
+                <MaterialIcons name="schedule" size={24} color="#0284c7" />
+                <Heading
+                  size="lg"
+                  className="mt-2 text-neutral-900 dark:text-white"
+                >
+                  {formatTime(analytics?.total_time_spent ?? 0)}
+                </Heading>
+                <Caption className="text-neutral-500 text-center">
+                  Study Time
                 </Caption>
               </Card>
             </View>
