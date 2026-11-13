@@ -199,6 +199,7 @@ export default function SettingsScreen() {
           onPress={() => Linking.openURL('https://wa.me/2347071100037?text=Hello%20Future%20Academy%2C%20I%20need%20assistance')}
         />
         <SettingRow icon="help-outline" label="Help Center" onPress={() => router.push('/info/help-center')} />
+        <SettingRow icon="gavel" label="Terms of Service" onPress={() => router.push('/info/terms-of-service' as any)} />
         <SettingRow icon="privacy-tip" label="Privacy Policy" onPress={() => router.push('/info/privacy-policy')} />
         <SettingRow icon="info-outline" label="About Future Academy" onPress={() => router.push('/info/about')} showBorder={false} />
       </Section>
