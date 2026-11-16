@@ -407,116 +407,165 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            <Subheading size="md" className="mt-2 mb-3 px-1">
-              Your Progress
-            </Subheading>
+            <View className="flex-row items-center justify-between mt-2 mb-3 px-1">
+              <Subheading size="md">Your Progress</Subheading>
+              <TouchableOpacity onPress={() => router.push("/progress")} activeOpacity={0.7}>
+                <Caption className="text-indigo-500 dark:text-indigo-400">
+                  View all →
+                </Caption>
+              </TouchableOpacity>
+            </View>
 
             <View className="flex-row flex-wrap justify-between mb-2">
-              <Card
-                variant="bordered"
-                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+              <TouchableOpacity
+                onPress={() => router.push("/progress?focus=streak")}
+                activeOpacity={0.75}
+                className="w-[48%] mb-3"
               >
-                <MaterialIcons
-                  name="local-fire-department"
-                  size={24}
-                  color="#ea580c"
-                />
-                <Heading
-                  size="lg"
-                  className="mt-2 text-neutral-900 dark:text-white"
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900 items-center py-4"
                 >
-                  {analytics?.study_streak ?? 0}
-                </Heading>
-                <Caption className="text-neutral-500 text-center">
-                  Day Streak
-                </Caption>
-              </Card>
+                  <MaterialIcons
+                    name="local-fire-department"
+                    size={24}
+                    color="#ea580c"
+                  />
+                  <Heading
+                    size="lg"
+                    className="mt-2 text-neutral-900 dark:text-white"
+                  >
+                    {analytics?.study_streak ?? 0}
+                  </Heading>
+                  <Caption className="text-neutral-500 text-center">
+                    Day Streak
+                  </Caption>
+                </Card>
+              </TouchableOpacity>
 
-              <Card
-                variant="bordered"
-                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+              <TouchableOpacity
+                onPress={() => router.push("/progress?focus=videos")}
+                activeOpacity={0.75}
+                className="w-[48%] mb-3"
               >
-                <MaterialIcons name="play-circle" size={24} color="#16a34a" />
-                <Heading
-                  size="lg"
-                  className="mt-2 text-neutral-900 dark:text-white"
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900 items-center py-4"
                 >
-                  {analytics?.videos_watched ?? 0}
-                </Heading>
-                <Caption className="text-neutral-500 text-center">
-                  {analytics?.total_videos
-                    ? `/ ${analytics.total_videos} Videos`
-                    : "Videos Watched"}
-                </Caption>
-              </Card>
+                  <MaterialIcons
+                    name="play-circle"
+                    size={24}
+                    color="#16a34a"
+                  />
+                  <Heading
+                    size="lg"
+                    className="mt-2 text-neutral-900 dark:text-white"
+                  >
+                    {analytics?.videos_watched ?? 0}
+                  </Heading>
+                  <Caption className="text-neutral-500 text-center">
+                    {analytics?.total_videos
+                      ? `/ ${analytics.total_videos} Videos`
+                      : "Videos Watched"}
+                  </Caption>
+                </Card>
+              </TouchableOpacity>
 
-              <Card
-                variant="bordered"
-                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+              <TouchableOpacity
+                onPress={() => router.push("/progress?focus=quizzes")}
+                activeOpacity={0.75}
+                className="w-[48%] mb-3"
               >
-                <MaterialIcons name="quiz" size={24} color="#4f46e5" />
-                <Heading
-                  size="lg"
-                  className="mt-2 text-neutral-900 dark:text-white"
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900 items-center py-4"
                 >
-                  {analytics?.total_quizzes ?? 0}
-                </Heading>
-                <Caption className="text-neutral-500 text-center">
-                  Quizzes
-                </Caption>
-              </Card>
+                  <MaterialIcons name="quiz" size={24} color="#4f46e5" />
+                  <Heading
+                    size="lg"
+                    className="mt-2 text-neutral-900 dark:text-white"
+                  >
+                    {analytics?.total_quizzes ?? 0}
+                  </Heading>
+                  <Caption className="text-neutral-500 text-center">
+                    Quizzes
+                  </Caption>
+                </Card>
+              </TouchableOpacity>
 
-              <Card
-                variant="bordered"
-                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+              <TouchableOpacity
+                onPress={() => router.push("/progress?focus=mock_exams")}
+                activeOpacity={0.75}
+                className="w-[48%] mb-3"
               >
-                <MaterialIcons name="timer" size={24} color="#7c3aed" />
-                <Heading
-                  size="lg"
-                  className="mt-2 text-neutral-900 dark:text-white"
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900 items-center py-4"
                 >
-                  {analytics?.mock_exams_taken ?? 0}
-                </Heading>
-                <Caption className="text-neutral-500 text-center">
-                  {analytics?.best_mock_score
-                    ? `Best: ${Math.round(analytics.best_mock_score)}%`
-                    : "Mock Exams"}
-                </Caption>
-              </Card>
+                  <MaterialIcons name="timer" size={24} color="#7c3aed" />
+                  <Heading
+                    size="lg"
+                    className="mt-2 text-neutral-900 dark:text-white"
+                  >
+                    {analytics?.mock_exams_taken ?? 0}
+                  </Heading>
+                  <Caption className="text-neutral-500 text-center">
+                    {analytics?.best_mock_score
+                      ? `Best: ${Math.round(analytics.best_mock_score)}%`
+                      : "Mock Exams"}
+                  </Caption>
+                </Card>
+              </TouchableOpacity>
 
-              <Card
-                variant="bordered"
-                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+              <TouchableOpacity
+                onPress={() => router.push("/progress?focus=avg_score")}
+                activeOpacity={0.75}
+                className="w-[48%] mb-3"
               >
-                <MaterialIcons name="analytics" size={24} color="#10b981" />
-                <Heading
-                  size="lg"
-                  className="mt-2 text-neutral-900 dark:text-white"
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900 items-center py-4"
                 >
-                  {analytics?.average_score != null
-                    ? Math.round(Number(analytics.average_score)) + "%"
-                    : "N/A"}
-                </Heading>
-                <Caption className="text-neutral-500 text-center">
-                  Avg. Score
-                </Caption>
-              </Card>
+                  <MaterialIcons
+                    name="analytics"
+                    size={24}
+                    color="#10b981"
+                  />
+                  <Heading
+                    size="lg"
+                    className="mt-2 text-neutral-900 dark:text-white"
+                  >
+                    {analytics?.average_score != null
+                      ? Math.round(Number(analytics.average_score)) + "%"
+                      : "N/A"}
+                  </Heading>
+                  <Caption className="text-neutral-500 text-center">
+                    Avg. Score
+                  </Caption>
+                </Card>
+              </TouchableOpacity>
 
-              <Card
-                variant="bordered"
-                className="w-[48%] mb-3 bg-white dark:bg-neutral-900 items-center py-4"
+              <TouchableOpacity
+                onPress={() => router.push("/progress?focus=study_time")}
+                activeOpacity={0.75}
+                className="w-[48%] mb-3"
               >
-                <MaterialIcons name="schedule" size={24} color="#0284c7" />
-                <Heading
-                  size="lg"
-                  className="mt-2 text-neutral-900 dark:text-white"
+                <Card
+                  variant="bordered"
+                  className="bg-white dark:bg-neutral-900 items-center py-4"
                 >
-                  {formatTime(analytics?.total_time_spent ?? 0)}
-                </Heading>
-                <Caption className="text-neutral-500 text-center">
-                  Study Time
-                </Caption>
-              </Card>
+                  <MaterialIcons name="schedule" size={24} color="#0284c7" />
+                  <Heading
+                    size="lg"
+                    className="mt-2 text-neutral-900 dark:text-white"
+                  >
+                    {formatTime(analytics?.total_time_spent ?? 0)}
+                  </Heading>
+                  <Caption className="text-neutral-500 text-center">
+                    Study Time
+                  </Caption>
+                </Card>
+              </TouchableOpacity>
             </View>
 
             <Card
