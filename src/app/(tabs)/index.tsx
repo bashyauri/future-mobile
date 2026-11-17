@@ -409,7 +409,7 @@ export default function HomeScreen() {
 
             <View className="flex-row items-center justify-between mt-2 mb-3 px-1">
               <Subheading size="md">Your Progress</Subheading>
-              <TouchableOpacity onPress={() => router.push("/progress")} activeOpacity={0.7}>
+              <TouchableOpacity onPress={() => router.push("/progress" as any)} activeOpacity={0.7}>
                 <Caption className="text-indigo-500 dark:text-indigo-400">
                   View all →
                 </Caption>
@@ -418,7 +418,7 @@ export default function HomeScreen() {
 
             <View className="flex-row flex-wrap justify-between mb-2">
               <TouchableOpacity
-                onPress={() => router.push("/progress?focus=streak")}
+                onPress={() => router.push("/progress?focus=streak" as any)}
                 activeOpacity={0.75}
                 className="w-[48%] mb-3"
               >
@@ -444,7 +444,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => router.push("/progress?focus=videos")}
+                onPress={() => router.push("/progress?focus=videos" as any)}
                 activeOpacity={0.75}
                 className="w-[48%] mb-3"
               >
@@ -472,7 +472,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => router.push("/progress?focus=quizzes")}
+                onPress={() => router.push("/progress?focus=quizzes" as any)}
                 activeOpacity={0.75}
                 className="w-[48%] mb-3"
               >
@@ -494,7 +494,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => router.push("/progress?focus=mock_exams")}
+                onPress={() => router.push("/progress?focus=mock_exams" as any)}
                 activeOpacity={0.75}
                 className="w-[48%] mb-3"
               >
@@ -518,7 +518,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => router.push("/progress?focus=avg_score")}
+                onPress={() => router.push("/progress?focus=avg_score" as any)}
                 activeOpacity={0.75}
                 className="w-[48%] mb-3"
               >
@@ -546,7 +546,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => router.push("/progress?focus=study_time")}
+                onPress={() => router.push("/progress?focus=study_time" as any)}
                 activeOpacity={0.75}
                 className="w-[48%] mb-3"
               >

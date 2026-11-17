@@ -231,7 +231,7 @@ function StatPill({
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function ProgressScreen() {
-  const { focus } = useLocalSearchParams<{ focus?: FocusKey }>();
+  const { focus } = useLocalSearchParams<{ focus?: string }>();
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const scrollRef = useRef<ScrollView>(null);
@@ -413,20 +413,23 @@ export default function ProgressScreen() {
         </View>
 
         {/* ── Quiz Scores Over Time ── */}
-        <Card
-          variant="bordered"
-          className="mb-4 bg-white dark:bg-neutral-900"
+        <View
+          className="mb-4"
           onLayout={(e: any) => {
             sectionOffsets.current["scores"] = e.nativeEvent.layout.y;
           }}
         >
-          <SectionHeader
-            icon="show-chart"
-            title="Quiz Scores Over Time"
-            subtitle="Average score per day"
-            color="#4f46e5"
-            highlighted={focus === "quizzes" || focus === "avg_score"}
-          />
+          <Card
+            variant="bordered"
+            className="bg-white dark:bg-neutral-900"
+          >
+            <SectionHeader
+              icon="show-chart"
+              title="Quiz Scores Over Time"
+              subtitle="Average score per day"
+              color="#4f46e5"
+              highlighted={focus === "quizzes" || focus === "avg_score"}
+            />
 
           {scoreChartData.length > 0 ? (
             <BarChart
@@ -446,8 +449,9 @@ export default function ProgressScreen() {
             </View>
           )}
         </Card>
+      </View>
 
-        {/* ── Subject Performance ── */}
+      {/* ── Subject Performance ── */}
         <Card
           variant="bordered"
           className="mb-4 bg-white dark:bg-neutral-900"
@@ -508,46 +512,50 @@ export default function ProgressScreen() {
         </Card>
 
         {/* ── Study Streak ── */}
-        <Card
-          variant="bordered"
-          className="mb-4 bg-white dark:bg-neutral-900"
+        <View
+          className="mb-4"
           onLayout={(e: any) => {
             sectionOffsets.current["streak"] = e.nativeEvent.layout.y;
           }}
         >
-          <SectionHeader
-            icon="local-fire-department"
-            title="Study Streak"
-            subtitle="Last 30 days activity"
-            color="#ea580c"
-            highlighted={focus === "streak" || focus === "study_time"}
-          />
+          <Card
+            variant="bordered"
+            className="bg-white dark:bg-neutral-900"
+          >
+            <SectionHeader
+              icon="local-fire-department"
+              title="Study Streak"
+              subtitle="Last 30 days activity"
+              color="#ea580c"
+              highlighted={focus === "streak" || focus === "study_time"}
+            />
 
-          <View className="flex-row justify-around mb-4">
-            <View className="items-center">
-              <Heading size="xl" className="text-orange-500">
-                {streak?.current_streak ?? overview?.study_streak ?? 0}
-              </Heading>
-              <Caption className="text-neutral-500">Current</Caption>
+            <View className="flex-row justify-around mb-4">
+              <View className="items-center">
+                <Heading size="xl" className="text-orange-500">
+                  {streak?.current_streak ?? overview?.study_streak ?? 0}
+                </Heading>
+                <Caption className="text-neutral-500">Current</Caption>
+              </View>
+              <View className="w-px bg-neutral-200 dark:bg-neutral-700" />
+              <View className="items-center">
+                <Heading size="xl" className="text-neutral-700 dark:text-neutral-300">
+                  {streak?.longest_streak ?? 0}
+                </Heading>
+                <Caption className="text-neutral-500">Longest</Caption>
+              </View>
             </View>
-            <View className="w-px bg-neutral-200 dark:bg-neutral-700" />
-            <View className="items-center">
-              <Heading size="xl" className="text-neutral-700 dark:text-neutral-300">
-                {streak?.longest_streak ?? 0}
-              </Heading>
-              <Caption className="text-neutral-500">Longest</Caption>
+
+            <StreakCalendar activeDays={streak?.active_days ?? []} />
+
+            <View className="flex-row items-center mt-3 gap-2">
+              <View className="w-3 h-3 rounded-sm bg-indigo-600" />
+              <Caption className="text-neutral-500">Active day</Caption>
+              <View className="w-3 h-3 rounded-sm border border-neutral-300 dark:border-neutral-600 ml-3" />
+              <Caption className="text-neutral-500">Inactive</Caption>
             </View>
-          </View>
-
-          <StreakCalendar activeDays={streak?.active_days ?? []} />
-
-          <View className="flex-row items-center mt-3 gap-2">
-            <View className="w-3 h-3 rounded-sm bg-indigo-600" />
-            <Caption className="text-neutral-500">Active day</Caption>
-            <View className="w-3 h-3 rounded-sm border border-neutral-300 dark:border-neutral-600 ml-3" />
-            <Caption className="text-neutral-500">Inactive</Caption>
-          </View>
-        </Card>
+          </Card>
+        </View>
 
         {/* ── Recent Quiz History ── */}
         <Card

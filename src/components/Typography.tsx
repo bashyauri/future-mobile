@@ -106,18 +106,18 @@ export function BodyText({ children, variant = 'default', size, className = '', 
   );
 }
 
-interface CaptionProps {
+interface CaptionProps extends TextProps {
   children: React.ReactNode;
   className?: string;
   style?: TextStyle;
 }
 
-export function Caption({ children, className = '', style }: CaptionProps) {
+export function Caption({ children, className = '', style, ...props }: CaptionProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
   return (
-    <Text className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-900'} ${className}`} style={style}>
+    <Text className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-900'} ${className}`} style={style} {...props}>
       {children}
     </Text>
   );

@@ -12,6 +12,7 @@ import {
   Pressable,
   Modal as RNModal,
   StyleSheet,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -107,9 +108,18 @@ type SubjectItem = {
   is_enrolled: boolean;
 };
 
+type PaginationMeta = {
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+  has_more: boolean;
+};
+
 type DashboardData = {
   stats: CombinedStats;
   children: Child[];
+  pagination?: PaginationMeta;
   subscriptions: Subscription[];
   unassigned_subscriptions: Subscription[];
 };
@@ -412,30 +422,90 @@ export default function ParentDashboard() {
     studentName: string;
   }>({ visible: false, studentId: 0, studentName: "" });
 
-  const loadDashboard = useCallback(async () => {
-    try {
-      const res = await api.get("/parent/dashboard");
-      setData(res.data?.data ?? null);
-    } catch (e: any) {
-      console.warn("Failed to load parent dashboard", e);
-      if (e.response?.status === 403) {
-        Alert.alert("Access Denied", "Parent account required.");
+  // Search and pagination state
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const loadDashboard = useCallback(
+    async (targetPage = 1, searchQuery = "", append = false) => {
+      try {
+        const params = new URLSearchParams();
+        params.append("page", String(targetPage));
+        params.append("per_page", "20");
+        if (searchQuery.trim()) {
+          params.append("search", searchQuery.trim());
+        }
+        const res = await api.get(`/parent/dashboard?${params.toString()}`);
+        const responseData = res.data?.data;
+        if (responseData) {
+          if (append) {
+            setData((prev) =>
+              prev
+                ? {
+                    ...responseData,
+                    children: [
+                      ...(prev.children || []),
+                      ...(responseData.children || []),
+                    ],
+                  }
+                : responseData
+            );
+          } else {
+            setData(responseData);
+          }
+          setPage(targetPage);
+        }
+      } catch (e: any) {
+        console.warn("Failed to load parent dashboard", e);
+        if (e.response?.status === 403) {
+          Alert.alert("Access Denied", "Parent account required.");
+        }
       }
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
+    let cancelled = false;
     const init = async () => {
       setIsLoading(true);
-      await loadDashboard();
-      setIsLoading(false);
+      await loadDashboard(1, search, false);
+      if (!cancelled) {
+        setIsLoading(false);
+      }
     };
     init();
-  }, [loadDashboard]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Debounced search when search query changes
+  const isFirstMount = React.useRef(true);
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      loadDashboard(1, search, false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search, loadDashboard]);
+
+  const loadMore = async () => {
+    if (loadingMore || !data?.pagination?.has_more) {
+      return;
+    }
+    setLoadingMore(true);
+    await loadDashboard(page + 1, search, true);
+    setLoadingMore(false);
+  };
 
   const onRefresh = async () => {
     setIsRefreshing(true);
-    await loadDashboard();
+    await loadDashboard(1, search, false);
     setIsRefreshing(false);
   };
 
@@ -699,7 +769,43 @@ export default function ParentDashboard() {
           <Subheading size="md">
             My Students
           </Subheading>
-          <Caption>{children.length} linked</Caption>
+          <Caption>{data?.pagination?.total ?? stats?.children_count ?? children.length} linked</Caption>
+        </View>
+
+        {/* ─── Search Bar ─── */}
+        <View
+          className={`flex-row items-center rounded-xl px-3 py-2.5 mb-4 border ${
+            isDark
+              ? "bg-neutral-900 border-neutral-800"
+              : "bg-white border-neutral-200"
+          }`}
+        >
+          <MaterialIcons
+            name="search"
+            size={20}
+            color={isDark ? "#71717a" : "#a1a1aa"}
+          />
+          <TextInput
+            placeholder="Search student by name or email..."
+            placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
+            value={search}
+            onChangeText={setSearch}
+            className={`flex-1 ml-2 text-sm ${
+              isDark ? "text-white" : "text-neutral-900"
+            }`}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearch("")}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialIcons
+                name="close"
+                size={18}
+                color={isDark ? "#71717a" : "#a1a1aa"}
+              />
+            </TouchableOpacity>
+          )}
         </View>
 
         {children.length === 0 ? (
@@ -1102,6 +1208,31 @@ export default function ParentDashboard() {
               </View>
             </View>
           ))
+        )}
+
+        {/* ─── Load More Button ─── */}
+        {data?.pagination?.has_more && (
+          <TouchableOpacity
+            onPress={loadMore}
+            disabled={loadingMore}
+            activeOpacity={0.7}
+            className={`py-3 px-4 rounded-xl items-center justify-center mb-4 border ${
+              isDark
+                ? "bg-neutral-900 border-neutral-800"
+                : "bg-white border-neutral-200"
+            }`}
+          >
+            {loadingMore ? (
+              <ActivityIndicator size="small" color="#4f46e5" />
+            ) : (
+              <Text
+                className="text-sm font-semibold"
+                style={{ color: isDark ? "#a5b4fc" : "#4f46e5" }}
+              >
+                Load More Students
+              </Text>
+            )}
+          </TouchableOpacity>
         )}
 
         {/* ─── Link / Create Student Actions ─── */}
