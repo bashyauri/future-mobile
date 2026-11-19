@@ -415,6 +415,9 @@ export default function ParentDashboard() {
   // Resend invitation loading
   const [resendingId, setResendingId] = useState<number | null>(null);
 
+  // Unlink student loading
+  const [unlinkingId, setUnlinkingId] = useState<number | null>(null);
+
   // Enrollment modal
   const [enrollmentModal, setEnrollmentModal] = useState<{
     visible: boolean;
@@ -567,6 +570,35 @@ export default function ParentDashboard() {
     } finally {
       setResendingId(null);
     }
+  };
+
+  const handleUnlinkStudent = (studentId: number, studentName: string) => {
+    Alert.alert(
+      "Unlink Student",
+      `Are you sure you want to unlink ${studentName}? This will remove them from your dashboard.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Unlink",
+          style: "destructive",
+          onPress: async () => {
+            setUnlinkingId(studentId);
+            try {
+              const res = await api.post(`/parent/students/${studentId}/unlink`);
+              Alert.alert("Success", res.data?.message ?? "Student unlinked.");
+              await loadDashboard(1, search, false);
+            } catch (e: any) {
+              Alert.alert(
+                "Error",
+                e.response?.data?.message ?? "Failed to unlink student."
+              );
+            } finally {
+              setUnlinkingId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatDate = (dateString: string): string => {
@@ -1204,6 +1236,26 @@ export default function ParentDashboard() {
                   >
                     Enrollment
                   </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleUnlinkStudent(child.id, child.name)}
+                  disabled={unlinkingId === child.id}
+                  activeOpacity={0.7}
+                  className={`px-3 py-3 rounded-xl items-center justify-center ${
+                    isDark ? "bg-red-900/20" : "bg-red-50"
+                  }`}
+                  style={{ minWidth: 44 }}
+                >
+                  {unlinkingId === child.id ? (
+                    <ActivityIndicator size="small" color="#ef4444" />
+                  ) : (
+                    <MaterialIcons
+                      name="link-off"
+                      size={18}
+                      color={isDark ? "#f87171" : "#ef4444"}
+                    />
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
