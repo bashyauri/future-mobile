@@ -1,4 +1,8 @@
-const { withGradleProperties, AndroidConfig } = require("@expo/config-plugins");
+const {
+  withAndroidManifest,
+  withGradleProperties,
+  AndroidConfig,
+} = require("@expo/config-plugins");
 
 const buildProfile = process.env.EAS_BUILD_PROFILE ?? "development";
 const isDevelopment = buildProfile === "development";
@@ -36,11 +40,52 @@ const withR8Optimization = (config) => {
   });
 };
 
+/**
+ * Expo Config Plugin to mark hardware features (like Wi-Fi) as optional.
+ * Prevents Google Play Store from restricting app availability on devices
+ * without dedicated Wi-Fi hardware (e.g. Chromebooks, Tablets, Desktops, XR).
+ */
+const withOptionalHardwareFeatures = (config) => {
+  return withAndroidManifest(config, (modConfig) => {
+    const manifest = modConfig.modResults.manifest;
+
+    if (!manifest["uses-feature"]) {
+      manifest["uses-feature"] = [];
+    }
+
+    const featuresToMakeOptional = [
+      "android.hardware.wifi",
+      "android.hardware.camera",
+      "android.hardware.camera.autofocus",
+      "android.hardware.telephony",
+    ];
+
+    for (const featureName of featuresToMakeOptional) {
+      const existing = manifest["uses-feature"].find(
+        (item) => item.$ && item.$["android:name"] === featureName
+      );
+
+      if (existing) {
+        existing.$["android:required"] = "false";
+      } else {
+        manifest["uses-feature"].push({
+          $: {
+            "android:name": featureName,
+            "android:required": "false",
+          },
+        });
+      }
+    }
+
+    return modConfig;
+  });
+};
+
 module.exports = {
   expo: {
     name: appName,
     slug: "mobile",
-    version: "2.0.0",
+    version: "2.1.0",
     orientation: "default",
     icon: "./assets/images/icon.png",
     scheme: "mobile",
@@ -90,6 +135,7 @@ module.exports = {
       "expo-sqlite",
       "expo-web-browser",
       withR8Optimization,
+      withOptionalHardwareFeatures,
     ],
     experiments: {
       typedRoutes: true,
