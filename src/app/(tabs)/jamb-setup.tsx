@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   ScrollView,
@@ -35,52 +35,6 @@ type Subject = {
   name: string;
   is_compulsory?: boolean;
 };
-
-type Year = {
-  year: number | string;
-  label: string;
-};
-
-function normalizeYears(input: unknown): Year[] {
-  if (!Array.isArray(input)) {
-    return [];
-  }
-
-  return input
-    .map((item) => {
-      if (typeof item === "number" || typeof item === "string") {
-        return {
-          year: item,
-          label: String(item),
-        };
-      }
-
-      if (item && typeof item === "object") {
-        const maybeYear = (item as { year?: number | string }).year;
-        const maybeLabel = (item as { label?: string }).label;
-
-        if (maybeYear !== undefined) {
-          return {
-            year: maybeYear,
-            label: maybeLabel ?? String(maybeYear),
-          };
-        }
-      }
-
-      return null;
-    })
-    .filter((item): item is Year => Boolean(item));
-}
-
-function toNumericYear(selectedYear: Year | null): number | undefined {
-  if (!selectedYear || selectedYear.year === "all") {
-    return undefined;
-  }
-
-  const parsedYear = Number(selectedYear.year);
-
-  return Number.isFinite(parsedYear) ? parsedYear : undefined;
-}
 
 function isCompulsoryEnglishSubject(subject: Subject): boolean {
   const normalizedName = subject.name.trim().toLowerCase();
@@ -133,8 +87,6 @@ export default function JambSetupScreen() {
   const netInfo = useNetInfo();
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [years, setYears] = useState<Year[]>([]);
-  const [selectedYear, setSelectedYear] = useState<Year | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [questionsPerSubjectInput, setQuestionsPerSubjectInput] = useState("");
   const [timeLimitInput, setTimeLimitInput] = useState("");
@@ -143,10 +95,6 @@ export default function JambSetupScreen() {
   const [isPreparing, setIsPreparing] = useState(false);
   const [prepareStatus, setPrepareStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isApplyingYearSelection, setIsApplyingYearSelection] = useState(false);
-  const yearSelectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
 
   const { isAllowed } = useSubscriptionGuard({ requirePaidOnly: true });
 
@@ -161,74 +109,25 @@ export default function JambSetupScreen() {
         setIsLoading(true);
         setError(null);
 
-        const [examTypesResponse, subjectsResponseAll, yearsResponseAll] =
-          await Promise.all([
-            api.get("/config/exam-types"),
-            api.get("/config/subjects"),
-            api.get("/config/years"),
-          ]);
-
-        const examTypes: ExamType[] =
-          examTypesResponse.data?.data ?? [];
-
+        const examTypesResponse = await api.get("/config/exam-types");
+        const examTypes: ExamType[] = examTypesResponse.data?.data ?? [];
         const jambExamType =
-          examTypes.find(
-            (examType) => examType.slug === "jamb"
-          ) ?? null;
+          examTypes.find((examType) => examType.slug === "jamb") ?? null;
 
         let fetchedSubjects: Subject[];
-        let fetchedYears: Year[];
-
         if (jambExamType) {
-          const [subjectsFiltered, yearsFiltered] =
-            await Promise.all([
-              api.get("/config/subjects", {
-                params: {
-                  exam_type_id: jambExamType.id,
-                },
-              }),
-
-              api.get("/config/years", {
-                params: {
-                  exam_type_id: jambExamType.id,
-                },
-              }),
-            ]);
-
+          const subjectsFiltered = await api.get("/config/subjects", {
+            params: { exam_type_id: jambExamType.id },
+          });
           fetchedSubjects =
-            subjectsFiltered.data?.data ??
-            subjectsFiltered.data ??
-            [];
-
-          fetchedYears = normalizeYears(
-            yearsFiltered.data?.data ??
-            yearsFiltered.data ??
-            []
-          );
+            subjectsFiltered.data?.data ?? subjectsFiltered.data ?? [];
         } else {
+          const subjectsResponseAll = await api.get("/config/subjects");
           fetchedSubjects =
-            subjectsResponseAll.data?.data ??
-            subjectsResponseAll.data ??
-            [];
-
-          fetchedYears = normalizeYears(
-            yearsResponseAll.data?.data ??
-            yearsResponseAll.data ??
-            []
-          );
+            subjectsResponseAll.data?.data ?? subjectsResponseAll.data ?? [];
         }
 
         setSubjects(fetchedSubjects);
-
-        setYears([
-          { year: "all", label: "All Years" },
-          ...fetchedYears,
-        ]);
-
-        setSelectedYear({
-          year: "all",
-          label: "All Years",
-        });
 
         const compulsory = fetchedSubjects
           .filter(isCompulsoryEnglishSubject)
@@ -237,10 +136,7 @@ export default function JambSetupScreen() {
         setSelectedIds(compulsory);
       } catch (e) {
         console.log("JAMB CONFIG ERROR:", e);
-
-        setError(
-          "Could not load subjects. Please check your connection."
-        );
+        setError("Could not load subjects. Please check your connection.");
       } finally {
         setIsLoading(false);
       }
@@ -252,74 +148,31 @@ export default function JambSetupScreen() {
   const isRequired = (subject: Subject): boolean =>
     isCompulsoryEnglishSubject(subject);
 
-  const handleYearSelection = (yearOption: Year) => {
-    setSelectedYear(yearOption);
-    setIsApplyingYearSelection(true);
-
-    if (yearSelectionTimerRef.current) {
-      clearTimeout(yearSelectionTimerRef.current);
-    }
-
-    yearSelectionTimerRef.current = setTimeout(() => {
-      setIsApplyingYearSelection(false);
-    }, 500);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (yearSelectionTimerRef.current) {
-        clearTimeout(yearSelectionTimerRef.current);
-      }
-    };
-  }, []);
-
   // Auto-refresh when connection is restored
-
   useEffect(() => {
     if (netInfo.isConnected === true && !isLoading) {
       const fetchJambConfiguration = async () => {
         try {
           setError(null);
-
-          const [examTypesResponse, subjectsResponseAll, yearsResponseAll] =
-            await Promise.all([
-              api.get("/config/exam-types"),
-              api.get("/config/subjects"),
-              api.get("/config/years"),
-            ]);
-
+          const examTypesResponse = await api.get("/config/exam-types");
           const examTypes: ExamType[] = examTypesResponse.data?.data ?? [];
           const jambExamType =
             examTypes.find((examType) => examType.slug === "jamb") ?? null;
 
           let fetchedSubjects: Subject[];
-          let fetchedYears: Year[];
-
           if (jambExamType) {
-            const [subjectsFiltered, yearsFiltered] = await Promise.all([
-              api.get("/config/subjects", {
-                params: { exam_type_id: jambExamType.id },
-              }),
-              api.get("/config/years", {
-                params: { exam_type_id: jambExamType.id },
-              }),
-            ]);
+            const subjectsFiltered = await api.get("/config/subjects", {
+              params: { exam_type_id: jambExamType.id },
+            });
             fetchedSubjects =
               subjectsFiltered.data?.data ?? subjectsFiltered.data ?? [];
-            fetchedYears = normalizeYears(
-              yearsFiltered.data?.data ?? yearsFiltered.data ?? [],
-            );
           } else {
+            const subjectsResponseAll = await api.get("/config/subjects");
             fetchedSubjects =
               subjectsResponseAll.data?.data ?? subjectsResponseAll.data ?? [];
-            fetchedYears = normalizeYears(
-              yearsResponseAll.data?.data ?? yearsResponseAll.data ?? [],
-            );
           }
 
           setSubjects(fetchedSubjects);
-          setYears([{ year: "all", label: "All Years" }, ...fetchedYears]);
-          setSelectedYear({ year: "all", label: "All Years" });
 
           const compulsory = fetchedSubjects
             .filter((subject) => isCompulsoryEnglishSubject(subject))
@@ -358,7 +211,6 @@ export default function JambSetupScreen() {
     try {
       setIsPreparing(true);
       setPrepareStatus("Validating JAMB session settings...");
-      const selectedNumericYear = toNumericYear(selectedYear);
       const parsedQuestionsPerSubject = Number(questionsPerSubjectInput);
       const questionsPerSubject =
         questionsPerSubjectInput.trim().length > 0 &&
@@ -373,7 +225,7 @@ export default function JambSetupScreen() {
 
       const payload = {
         subject_ids: selectedSubjects.map((subject) => subject.id),
-        year: selectedNumericYear ?? null,
+        year: null,
         ...(questionsPerSubject
           ? { questions_per_subject: questionsPerSubject }
           : {}),
@@ -463,33 +315,6 @@ export default function JambSetupScreen() {
         className="flex-1 px-4 pt-6"
         showsVerticalScrollIndicator={false}
       >
-        <Subheading size="md" className="mb-3 px-2">
-          Select Exam Year (Optional)
-        </Subheading>
-        {isApplyingYearSelection ? (
-          <View className="flex-row items-center px-2 mb-3">
-            <ActivityIndicator size="small" color="#4f46e5" />
-            <Caption className="ml-2 text-neutral-500 dark:text-neutral-400">
-              Applying year...
-            </Caption>
-          </View>
-        ) : null}
-        <View className="flex-row flex-wrap px-2 mb-6">
-          {years.map((yearOption) => (
-            <Button
-              key={String(yearOption.year)}
-              variant={
-                selectedYear?.year === yearOption.year ? "primary" : "outline"
-              }
-              onPress={() => handleYearSelection(yearOption)}
-              size="sm"
-              style={{ marginRight: 12, marginBottom: 12 }}
-            >
-              {yearOption.label}
-            </Button>
-          ))}
-        </View>
-
         <View className="flex-row justify-between items-end mb-4 px-2">
           <Subheading size="md">Available Subjects</Subheading>
           <Caption
@@ -543,8 +368,8 @@ export default function JambSetupScreen() {
                     ) : (
                       <View
                         className={`w-6 h-6 rounded-full border-2 items-center justify-center ${isSelected
-                            ? "bg-primary-500 border-primary-500"
-                            : "border-neutral-300 dark:border-neutral-600"
+                          ? "bg-primary-500 border-primary-500"
+                          : "border-neutral-300 dark:border-neutral-600"
                           }`}
                       >
                         {isSelected && (
