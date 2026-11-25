@@ -69,9 +69,6 @@ export function useSubscriptionGuard(
   // Entitlement
   // ---------------------------------------------------------------------------
 
-  // PAYWALL DISABLED FOR TESTING - Allow all authenticated users to access all features
-  // Uncomment the code below to re-enable the paywall
-  /*
   let isAllowed = false;
 
   if (!isChecking) {
@@ -83,10 +80,6 @@ export function useSubscriptionGuard(
         isOnActiveTrial;
     }
   }
-  */
-
-  // Allow all authenticated users to access all features
-  let isAllowed = !isChecking;
 
   return {
     isAllowed,
